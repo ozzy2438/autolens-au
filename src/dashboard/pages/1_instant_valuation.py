@@ -106,7 +106,11 @@ if submitted and engine is not None:
             fuel_type=fuel_type,
             transmission=transmission,
             drive_type=drive_type,
+            condition="Used",
             location=location,
+            doors=None,
+            seats=None,
+            cylinders=None,
         )
     )
     metric_columns = st.columns(4)
