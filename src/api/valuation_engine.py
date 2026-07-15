@@ -61,7 +61,15 @@ class ValuationEngine:
             "cylinders": request.cylinders if request.cylinders is not None else 4,
         }
         prediction = predict_price(self.model, vehicle_data, return_interval=True)
-        drivers = [PriceDriver(**driver) for driver in explain_prediction(self.model, vehicle_data)]
+        drivers = [
+            PriceDriver(
+                feature=str(driver["feature"]),
+                impact_aud=float(driver["impact_aud"]),
+                direction=str(driver["direction"]),
+                description=str(driver["description"]),
+            )
+            for driver in explain_prediction(self.model, vehicle_data)
+        ]
         segment_key = f"{request.brand.strip().casefold()}|{request.model.strip().casefold()}"
 
         return ValuationResponse(
