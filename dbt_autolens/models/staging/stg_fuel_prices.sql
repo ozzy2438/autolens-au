@@ -9,7 +9,7 @@ cleaned as (
     select
         stationcode as station_code,
         fueltype as fuel_type_code,
-        cast(price as numeric) / 10.0 as price_per_litre,  -- API returns price in tenths of cents
+        cast(price as numeric) / 100.0 as price_per_litre,  -- API returns cents per litre
         lastupdated as last_updated,
         name as station_name,
         suburb,

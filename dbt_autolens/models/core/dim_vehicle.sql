@@ -16,7 +16,10 @@ with distinct_vehicles as (
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['brand', 'model', 'body_type', 'fuel_type', 'transmission']) }} as vehicle_key,
+    {{ dbt_utils.generate_surrogate_key([
+        'brand', 'model', 'body_type', 'fuel_type', 'transmission',
+        'drive_type', 'doors', 'seats', 'cylinders'
+    ]) }} as vehicle_key,
     brand,
     model,
     

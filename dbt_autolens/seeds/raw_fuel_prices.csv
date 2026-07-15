@@ -1,0 +1,3 @@
+stationcode,fueltype,price,lastupdated,name,suburb,state,latitude,longitude,fetched_at,source
+CI001,U91,189.9,2026-07-15T00:00:00Z,CI Fuel Sydney,Sydney,NSW,-33.8688,151.2093,2026-07-15T00:00:00Z,ci_seed
+CI002,DL,195.5,2026-07-15T00:00:00Z,CI Fuel Newcastle,Newcastle,NSW,-32.9283,151.7817,2026-07-15T00:00:00Z,ci_seed

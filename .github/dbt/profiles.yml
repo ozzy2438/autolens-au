@@ -1,0 +1,13 @@
+autolens_au:
+  target: runtime
+  outputs:
+    runtime:
+      type: postgres
+      host: "{{ env_var('DB_HOST', 'localhost') }}"
+      port: "{{ env_var('DB_PORT', '5432') | int }}"
+      user: "{{ env_var('DB_USER', 'autolens') }}"
+      password: "{{ env_var('DB_PASSWORD', '') }}"
+      dbname: "{{ env_var('DB_NAME', 'autolens_au') }}"
+      schema: public
+      threads: 4
+      connect_timeout: 10

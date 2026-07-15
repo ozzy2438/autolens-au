@@ -26,6 +26,6 @@ outliers as (
 )
 
 -- Test passes if fewer than 1% of records are extreme outliers
-select *
+select count(*) as outlier_count
 from outliers
 having count(*) > (select count(*) * 0.01 from {{ ref('stg_listings') }})
