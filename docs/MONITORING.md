@@ -15,7 +15,7 @@ valuations over time.
 | MAE (overall) | Pending first verified run | >5% above measured baseline | Investigate |
 | MAE (overall) | Pending first verified run | >10% above measured baseline | Retrain candidate |
 | MdAPE | Pending first verified run | Defined after baseline review | Investigate |
-| Coverage (80% PI) | Pending calibration | <75% after calibration | Recalibrate intervals |
+| Coverage (80% PI) | Pending first calibrated artifact | <75% after calibration | Recalibrate intervals |
 | Data freshness | Monthly | >45 days stale | Alert |
 
 ---
@@ -28,9 +28,13 @@ Monthly evaluation of the production model on newly ingested data:
 2. Compare predicted vs actual (where actuals become available)
 3. Compute MAE, MdAPE by segment
 4. Compare against baseline stored in `models/artifacts/latest_metrics.json`
+5. Persist the measured result to `models/artifacts/latest_drift.json`
 
-### Data Drift
-Monitor input feature distributions:
+If there is no snapshot later than the model's training boundary, the job records
+`no_new_snapshot`. It does not report “no drift detected” without an evaluation sample.
+
+### Data Drift (planned, not yet automated)
+The next monitoring increment will compare input feature distributions:
 - Brand mix (are new brands appearing?)
 - Price distribution shifts
 - Geographic distribution changes
@@ -75,11 +79,13 @@ Vehicle pricing fundamentals can shift due to:
 
 ## Retrain Triggers
 
-Automatic retrain is triggered when:
-1. MAE degrades >5% from baseline for 2 consecutive months
-2. PI coverage drops below 75%
-3. New data source is integrated
-4. Force-retrain flag set in monthly_refresh workflow
+The current script retrains when:
+1. Measured MAE on a newer snapshot is >5% above the stored baseline
+2. No baseline artifact exists
+3. The force-retrain flag is set in the monthly workflow
+
+PI coverage below 75% is recorded for review; consecutive-month and feature-distribution policies
+will only be enabled when enough real refresh history exists.
 
 ## Retrain Process
 1. Full pipeline refresh (latest data)

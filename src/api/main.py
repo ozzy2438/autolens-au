@@ -11,8 +11,9 @@ Endpoints:
 Auto-generated OpenAPI docs available at /docs (Swagger) and /redoc.
 """
 
+import os
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,7 +38,7 @@ async def lifespan(app: FastAPI):
     try:
         engine = ValuationEngine()
         engine.load()
-    except FileNotFoundError:
+    except (FileNotFoundError, TypeError):
         # Model not yet trained — API will return 503 until model is available
         engine = None
     yield
@@ -66,11 +67,15 @@ app = FastAPI(
     },
 )
 
-# CORS middleware
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:8501").split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -82,7 +87,7 @@ async def health_check():
     return HealthResponse(
         status="healthy" if engine is not None else "degraded",
         model_loaded=engine is not None,
-        timestamp=datetime.now(),
+        timestamp=datetime.now(UTC),
         version="1.0.0",
     )
 
