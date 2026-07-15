@@ -69,17 +69,19 @@ CREATE TABLE IF NOT EXISTS raw.raw_fuel_prices (
     source VARCHAR(100)
 );
 
--- Raw layer: QLD registrations
-CREATE TABLE IF NOT EXISTS raw.raw_qld_registrations (
+-- Raw layer: QLD new-registration and transfer activity
+CREATE TABLE IF NOT EXISTS raw.raw_qld_registration_activity (
+    activity_month DATE,
     make VARCHAR(100),
     model VARCHAR(200),
-    year INTEGER,
-    body_type VARCHAR(100),
+    badge VARCHAR(200),
+    body_shape VARCHAR(100),
     fuel_type VARCHAR(50),
-    colour VARCHAR(50),
-    vehicle_category VARCHAR(100),
+    transaction_type VARCHAR(50),
+    activity_count BIGINT,
+    source_resource_id UUID,
     source VARCHAR(100),
-    ingested_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    fetched_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Raw layer: CPI data
@@ -91,6 +93,23 @@ CREATE TABLE IF NOT EXISTS raw.raw_cpi (
     fetched_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Raw layer: RBA cash-rate target
+CREATE TABLE IF NOT EXISTS raw.raw_rba_cash_rate (
+    period_date DATE,
+    cash_rate_target_pct NUMERIC,
+    source VARCHAR(50),
+    fetched_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Raw layer: BITRE registered vehicles by make
+CREATE TABLE IF NOT EXISTS raw.raw_bitre_vehicle_makes (
+    make VARCHAR(100),
+    reference_year INTEGER,
+    registered_vehicles BIGINT,
+    source VARCHAR(100),
+    fetched_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_listings_brand ON raw.raw_listings(brand);
 CREATE INDEX IF NOT EXISTS idx_listings_year ON raw.raw_listings(year);
@@ -98,8 +117,21 @@ CREATE INDEX IF NOT EXISTS idx_listings_price ON raw.raw_listings(price);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_listings_snapshot
     ON raw.raw_listings(listing_fingerprint, snapshot_date);
 CREATE INDEX IF NOT EXISTS idx_fuel_station ON raw.raw_fuel_prices(stationcode);
-CREATE INDEX IF NOT EXISTS idx_rego_make ON raw.raw_qld_registrations(make);
+CREATE INDEX IF NOT EXISTS idx_rego_activity_make
+    ON raw.raw_qld_registration_activity(make);
 """
+
+
+def _sql_statements(script: str) -> list[str]:
+    """Split the setup script while retaining statements preceded by comments."""
+    statements: list[str] = []
+    for chunk in script.split(";"):
+        statement = "\n".join(
+            line for line in chunk.splitlines() if not line.strip().startswith("--")
+        ).strip()
+        if statement:
+            statements.append(statement)
+    return statements
 
 
 def setup_database():
@@ -114,17 +146,13 @@ def setup_database():
     engine = get_engine()
     with engine.connect() as conn:
         # Execute each statement separately
-        for statement in SCHEMA_SQL.split(";"):
-            statement = statement.strip()
-            if statement and not statement.startswith("--"):
-                conn.execute(text(statement))
+        for statement in _sql_statements(SCHEMA_SQL):
+            conn.execute(text(statement))
         conn.commit()
 
     logger.info("Database setup complete!")
     logger.info("Schemas created: raw, staging, core")
-    logger.info(
-        "Tables created: raw.raw_listings, raw.raw_fuel_prices, raw.raw_qld_registrations, raw.raw_cpi"
-    )
+    logger.info("Raw tables created for listings, fuel, QLD activity, CPI, RBA rates and BITRE")
 
 
 if __name__ == "__main__":

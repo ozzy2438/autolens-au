@@ -1,23 +1,26 @@
--- Staging model: QLD Vehicle Registration data
--- Source: raw.raw_qld_registrations (QLD Open Data Portal)
+-- QLD new-registration and transfer activity (not total active fleet)
 
 with source as (
-    select * from {{ source('raw', 'raw_qld_registrations') }}
+    select * from {{ source('raw', 'raw_qld_registration_activity') }}
 ),
 
 cleaned as (
     select
+        cast(activity_month as date) as activity_month,
         trim(lower(make)) as make,
-        trim(lower(model)) as model,
-        cast(year as integer) as manufacture_year,
-        trim(lower(body_type)) as body_type,
-        trim(lower(fuel_type)) as fuel_type,
-        trim(lower(colour)) as colour,
-        trim(lower(vehicle_category)) as vehicle_category,
+        nullif(trim(lower(model)), '') as model,
+        nullif(trim(lower(badge)), '') as badge,
+        nullif(trim(lower(body_shape)), '') as body_shape,
+        nullif(trim(lower(fuel_type)), '') as fuel_type,
+        trim(lower(transaction_type)) as transaction_type,
+        cast(activity_count as bigint) as activity_count,
+        source_resource_id,
         source as data_source,
-        ingested_at
+        fetched_at
     from source
     where make is not null
+      and activity_count is not null
+      and cast(activity_count as bigint) > 0
 )
 
 select * from cleaned

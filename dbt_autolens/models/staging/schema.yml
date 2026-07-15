@@ -37,11 +37,28 @@ sources:
           - name: price
             description: "Fuel price (cents per litre)"
 
-      - name: raw_qld_registrations
-        description: "QLD vehicle registration data from Open Data Portal"
+      - name: raw_qld_registration_activity
+        description: "QLD monthly new-registration and transfer activity; not total active fleet"
         columns:
           - name: make
             description: "Vehicle make/manufacturer"
+            data_tests:
+              - not_null
+          - name: activity_month
+            data_tests:
+              - not_null
+          - name: activity_count
+            data_tests:
+              - not_null
+
+      - name: raw_bitre_vehicle_makes
+        description: "National registered vehicle counts by make from BITRE"
+
+      - name: raw_cpi
+        description: "ABS All Groups CPI series republished by RBA table G1"
+
+      - name: raw_rba_cash_rate
+        description: "RBA cash-rate target series from table F1"
 
 models:
   - name: stg_listings
@@ -85,7 +102,40 @@ models:
                 max_value: 5.0
 
   - name: stg_qld_registrations
-    description: "Cleaned QLD vehicle registration data"
+    description: "Cleaned QLD new-registration and transfer activity"
     columns:
       - name: make
         description: "Vehicle make (lowercase)"
+        data_tests:
+          - not_null
+      - name: activity_count
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+
+  - name: stg_bitre_vehicle_makes
+    description: "Cleaned national registered-vehicle counts by make"
+    columns:
+      - name: make
+        data_tests:
+          - not_null
+      - name: registered_vehicles
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+
+  - name: stg_economic_context
+    description: "Quarterly Australian CPI context"
+    columns:
+      - name: cpi_index
+        data_tests:
+          - not_null
+
+  - name: stg_rba_cash_rate
+    description: "RBA cash-rate target history"
+    columns:
+      - name: cash_rate_target_pct
+        data_tests:
+          - not_null
