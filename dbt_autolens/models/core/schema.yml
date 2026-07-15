@@ -1,0 +1,71 @@
+version: 2
+
+models:
+  - name: fact_listing
+    description: |
+      Fact table containing one row per vehicle listing.
+      Grain: individual vehicle listing.
+      Connects to dim_vehicle, dim_location via surrogate keys.
+    columns:
+      - name: listing_id
+        description: "Unique listing identifier (surrogate key)"
+        data_tests:
+          - unique
+          - not_null
+      - name: vehicle_key
+        description: "Foreign key to dim_vehicle"
+      - name: location_key
+        description: "Foreign key to dim_location"
+      - name: price_aud
+        description: "Listed price in Australian dollars"
+        data_tests:
+          - not_null
+      - name: kilometres
+        description: "Odometer reading in kilometres"
+      - name: vehicle_age
+        description: "Age of vehicle at listing time"
+      - name: age_km_interaction
+        description: "Interaction feature: age * km / 10000"
+
+  - name: dim_vehicle
+    description: |
+      Vehicle dimension: one row per unique vehicle configuration.
+      Contains make, model, variant proxy, body, fuel, transmission, segment.
+    columns:
+      - name: vehicle_key
+        description: "Surrogate key"
+        data_tests:
+          - unique
+          - not_null
+      - name: brand
+        description: "Vehicle manufacturer (standardised, lowercase)"
+        data_tests:
+          - not_null
+      - name: vehicle_segment
+        description: "Classified segment (large_suv, medium_car, etc.)"
+
+  - name: dim_location
+    description: |
+      Location dimension: one row per unique listing location.
+      Contains state, city, metro/regional classification.
+    columns:
+      - name: location_key
+        description: "Surrogate key"
+        data_tests:
+          - unique
+          - not_null
+      - name: state
+        description: "Australian state/territory code"
+      - name: metro_regional
+        description: "Metropolitan or Regional classification"
+
+  - name: dim_date
+    description: |
+      Date dimension: one row per year from 1990 to 2030.
+      Contains era classification and age band groupings.
+    columns:
+      - name: year_key
+        description: "Year as integer key"
+        data_tests:
+          - unique
+          - not_null

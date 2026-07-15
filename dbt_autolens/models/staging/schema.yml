@@ -1,0 +1,74 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Raw ingested data from external sources"
+    schema: raw
+    tables:
+      - name: raw_listings
+        description: "Combined Australian vehicle listings from Kaggle datasets"
+        columns:
+          - name: brand
+            description: "Vehicle manufacturer name"
+            data_tests:
+              - not_null
+          - name: price
+            description: "Listed price in AUD"
+            data_tests:
+              - not_null
+          - name: year
+            description: "Year of manufacture"
+            data_tests:
+              - not_null
+
+      - name: raw_fuel_prices
+        description: "NSW fuel prices from FuelCheck API"
+        columns:
+          - name: stationcode
+            description: "Unique station identifier"
+          - name: price
+            description: "Fuel price (tenths of cents per litre)"
+
+      - name: raw_qld_registrations
+        description: "QLD vehicle registration data from Open Data Portal"
+        columns:
+          - name: make
+            description: "Vehicle make/manufacturer"
+
+models:
+  - name: stg_listings
+    description: "Cleaned and standardised vehicle listings"
+    columns:
+      - name: listing_id
+        description: "Surrogate key for each listing"
+        data_tests:
+          - unique
+          - not_null
+      - name: price_aud
+        description: "Listed price in Australian dollars"
+        data_tests:
+          - not_null
+      - name: brand
+        description: "Standardised brand name (lowercase)"
+        data_tests:
+          - not_null
+      - name: manufacture_year
+        description: "Year of vehicle manufacture"
+        data_tests:
+          - not_null
+      - name: vehicle_age
+        description: "Calculated age of vehicle in years"
+
+  - name: stg_fuel_prices
+    description: "Cleaned NSW fuel price data"
+    columns:
+      - name: station_code
+        description: "Station identifier"
+      - name: price_per_litre
+        description: "Fuel price in dollars per litre"
+
+  - name: stg_qld_registrations
+    description: "Cleaned QLD vehicle registration data"
+    columns:
+      - name: make
+        description: "Vehicle make (lowercase)"
