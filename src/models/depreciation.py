@@ -109,7 +109,7 @@ def fit_depreciation_model(
 
     try:
         if model_type == "exponential":
-            popt, pcov = curve_fit(
+            popt, _pcov = curve_fit(
                 exponential_decay,
                 age,
                 price,
@@ -121,7 +121,7 @@ def fit_depreciation_model(
             params = {"initial_value": popt[0], "decay_rate": popt[1]}
 
         elif model_type == "power":
-            popt, pcov = curve_fit(
+            popt, _pcov = curve_fit(
                 power_decay,
                 age,
                 price,
