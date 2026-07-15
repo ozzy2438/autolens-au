@@ -1,219 +1,173 @@
-"""Queensland Vehicle Registrations data loader.
+"""Queensland new-registration and transfer activity loader.
 
-Source: https://www.data.qld.gov.au/dataset/vehicle-registrations
-License: Creative Commons Attribution 4.0
-
-This dataset contains registration information for all vehicles,
-trailers, caravans and motorcycles registered in Queensland, including:
-- Vehicle make, year, colour, category
-- Body shape, fuel type
-- Registration suburb
-
-Update frequency: Annually (October typically)
-Used for: Fleet composition analysis by make/model to contextualise
-          pricing trends and market share.
+The current Queensland Open Data package is partitioned across several CKAN
+DataStore resources.  Resources are discovered from package metadata rather
+than hard-coding a resource UUID, and aggregation happens in CKAN so the
+pipeline does not download millions of row-level records.
 """
 
 import logging
-from pathlib import Path
+import re
+from datetime import UTC, date, datetime
 
 import httpx
 import pandas as pd
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from config.database import get_engine
-from config.settings import DATA_DIR
 
 logger = logging.getLogger(__name__)
 
-# QLD Open Data Portal endpoints
-QLD_REGO_DATASET_URL = "https://www.data.qld.gov.au/dataset/vehicle-registrations"
-QLD_LIGHT_VEHICLES_URLS = [
-    "https://www.data.qld.gov.au/dataset/vehicle-registrations/resource/",
-]
-
-# New registrations by year (more regularly updated)
-QLD_NEW_REGO_URL = (
-    "https://www.data.qld.gov.au/dataset/new-vehicle-registrations-by-year"
-    "/resource/e6531fe2-a5aa-4a93-b954-465e679def78"
+QLD_CKAN_BASE = "https://www.data.qld.gov.au/api/3/action"
+QLD_PACKAGE_ID = "vehicle-registration-new-and-transfers-test"
+QLD_SOURCE = "qld_open_data_registration_activity"
+UUID_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    re.IGNORECASE,
 )
 
 
-def download_qld_registrations(
-    output_dir: Path | None = None,
-    resource_url: str | None = None,
-) -> Path:
-    """Download QLD vehicle registration data from open data portal.
-
-    Uses the CKAN API to fetch data in CSV format.
-    """
-    output_dir = output_dir or DATA_DIR / "raw" / "qld_rego"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Use the datastore API for direct data access
-    api_url = "https://www.data.qld.gov.au/api/3/action/datastore_search"
-
-    all_records = []
-    offset = 0
-    limit = 10000  # Max records per request
-
-    logger.info("Downloading QLD registration data...")
-
-    with httpx.Client(timeout=60.0) as client:
-        while True:
-            params: dict[str, int | str] = {
-                "limit": limit,
-                "offset": offset,
-            }
-            if resource_url:
-                params["resource_id"] = resource_url.split("/")[-1]
-
-            response = client.get(api_url, params=params)
-
-            if response.status_code != 200:
-                logger.warning(f"QLD API returned {response.status_code}, stopping")
-                break
-
-            data = response.json()
-            records = data.get("result", {}).get("records", [])
-
-            if not records:
-                break
-
-            all_records.extend(records)
-            offset += limit
-
-            if len(records) < limit:
-                break
-
-    if all_records:
-        df = pd.DataFrame(all_records)
-        output_path = output_dir / "qld_registrations.csv"
-        df.to_csv(output_path, index=False)
-        logger.info(f"Downloaded {len(df)} QLD registration records to {output_path}")
-        return output_path
-    else:
-        logger.warning("No QLD registration records downloaded")
-        return output_dir / "qld_registrations.csv"
+def _get_json(client: httpx.Client, endpoint: str, **params: str) -> dict:
+    response = client.get(f"{QLD_CKAN_BASE}/{endpoint}", params=params)
+    response.raise_for_status()
+    payload = response.json()
+    if not payload.get("success"):
+        raise RuntimeError(f"QLD CKAN {endpoint} request was unsuccessful")
+    result = payload.get("result")
+    if not isinstance(result, dict):
+        raise RuntimeError(f"QLD CKAN {endpoint} returned an invalid result")
+    return result
 
 
-def load_qld_registrations(filepath: Path | None = None) -> pd.DataFrame:
-    """Load and standardise QLD vehicle registration data.
+def discover_qld_resource_ids(client: httpx.Client) -> list[str]:
+    """Return active CSV/DataStore resources in the current QLD package."""
+    package = _get_json(client, "package_show", id=QLD_PACKAGE_ID)
+    resource_ids: list[str] = []
+    for resource in package.get("resources", []):
+        resource_id = str(resource.get("id", ""))
+        name = str(resource.get("name", "")).upper()
+        data_format = str(resource.get("format", "")).upper()
+        if (
+            resource.get("state") == "active"
+            and resource.get("datastore_active") is True
+            and data_format == "CSV"
+            and "VEHICLE_REGISTRATION_NEW_AND_TRANSFERS" in name
+            and UUID_PATTERN.fullmatch(resource_id)
+        ):
+            resource_ids.append(resource_id)
 
-    Returns:
-        DataFrame with fleet composition data (make, model, year, body, fuel type, count).
-    """
-    if filepath is None:
-        filepath = DATA_DIR / "raw" / "qld_rego" / "qld_registrations.csv"
-
-    if not filepath.exists():
-        logger.warning(f"QLD registration data not found at {filepath}")
-        return pd.DataFrame()
-
-    logger.info(f"Loading QLD registrations from {filepath}")
-    df = pd.read_csv(filepath, low_memory=False)
-
-    # Standardise column names (QLD data uses UPPER_CASE)
-    df.columns = df.columns.str.lower().str.strip()
-
-    # Map common column names
-    rename_map = {
-        "make": "make",
-        "model": "model",
-        "year_of_manufacture": "year",
-        "body_shape": "body_type",
-        "fuel_type": "fuel_type",
-        "colour": "colour",
-        "vehicle_type": "vehicle_category",
-    }
-
-    # Only rename columns that exist
-    existing_renames = {k: v for k, v in rename_map.items() if k in df.columns}
-    df = df.rename(columns=existing_renames)
-
-    # Add metadata
-    df["source"] = "qld_open_data_registrations"
-    df["ingested_at"] = pd.Timestamp.now(tz="UTC")
-
-    logger.info(f"Loaded {len(df)} QLD registration records")
-    return df
+    if not resource_ids:
+        raise RuntimeError("No active QLD registration activity resources were discovered")
+    return resource_ids
 
 
-def compute_fleet_composition(df: pd.DataFrame) -> pd.DataFrame:
-    """Aggregate registration data into fleet composition summary.
+def _default_since() -> date:
+    return date(datetime.now(UTC).year - 2, 1, 1)
 
-    Groups by make/model/year/body/fuel to show fleet distribution.
-    This is used in the Market Monitor dashboard page.
-    """
-    if df.empty:
-        return pd.DataFrame()
 
-    group_cols = ["make", "model", "year", "body_type", "fuel_type"]
-    available_cols = [c for c in group_cols if c in df.columns]
+def fetch_qld_registration_activity(
+    since: date | None = None,
+    client: httpx.Client | None = None,
+) -> pd.DataFrame:
+    """Fetch monthly QLD new-registration/transfer counts from CKAN."""
+    since = since or _default_since()
+    if since > date.today():
+        raise ValueError("since cannot be in the future")
 
-    if not available_cols:
-        logger.warning("No grouping columns available for fleet composition")
-        return df
+    owns_client = client is None
+    http_client = client or httpx.Client(timeout=90.0)
+    frames: list[pd.DataFrame] = []
+    try:
+        for resource_id in discover_qld_resource_ids(http_client):
+            # Both dynamic values are validated before interpolation. CKAN's SQL
+            # endpoint does not expose parameter binding.
+            if not UUID_PATTERN.fullmatch(resource_id):
+                raise ValueError("Invalid QLD CKAN resource identifier")
+            since_iso = since.isoformat()
+            # Some partitions expose RECORD_DATE as timestamp and others as text.
+            # The published text values are ISO dates, so one explicit cast keeps
+            # the same query valid across the full package.
+            sql = f'''SELECT date_trunc('month', "RECORD_DATE"::timestamp) AS "activity_month",
+                "MAKE", "MODEL", "BADGE", "BODY_SHAPE", "FUEL_TYPE", "TRANSACTION_TYPE",
+                count(*) AS "activity_count"
+                FROM "{resource_id}"
+                WHERE "RECORD_DATE"::date >= '{since_iso}'::date
+                GROUP BY 1, 2, 3, 4, 5, 6, 7'''  # noqa: S608
+            result = _get_json(http_client, "datastore_search_sql", sql=sql)
+            records = result.get("records", [])
+            if records:
+                frame = pd.DataFrame(records)
+                frame["source_resource_id"] = resource_id
+                frames.append(frame)
+    finally:
+        if owns_client:
+            http_client.close()
 
-    composition = (
-        df.groupby(available_cols, dropna=False).size().reset_index(name="registration_count")
+    if not frames:
+        return pd.DataFrame(
+            columns=[
+                "activity_month",
+                "make",
+                "model",
+                "badge",
+                "body_shape",
+                "fuel_type",
+                "transaction_type",
+                "activity_count",
+                "source_resource_id",
+                "source",
+                "fetched_at",
+            ]
+        )
+
+    activity = pd.concat(frames, ignore_index=True).rename(
+        columns={
+            "MAKE": "make",
+            "MODEL": "model",
+            "BADGE": "badge",
+            "BODY_SHAPE": "body_shape",
+            "FUEL_TYPE": "fuel_type",
+            "TRANSACTION_TYPE": "transaction_type",
+        }
     )
+    activity["activity_month"] = pd.to_datetime(activity["activity_month"], utc=True)
+    activity["activity_count"] = pd.to_numeric(activity["activity_count"], errors="raise").astype(
+        "int64"
+    )
+    activity["source"] = QLD_SOURCE
+    activity["fetched_at"] = pd.Timestamp.now(tz="UTC")
+    return activity
 
-    # Calculate market share
-    total = composition["registration_count"].sum()
-    composition["market_share_pct"] = (composition["registration_count"] / total * 100).round(4)
 
-    return composition.sort_values("registration_count", ascending=False)
-
-
-def load_to_raw_schema(df: pd.DataFrame) -> int:
-    """Load QLD registration data to PostgreSQL raw schema."""
-    engine = get_engine()
-
-    with engine.connect() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
-        conn.commit()
-
+def load_to_raw_schema(df: pd.DataFrame, engine: Engine | None = None) -> int:
+    """Replace the bounded, authoritative QLD activity window in PostgreSQL."""
+    if df.empty:
+        return 0
+    target_engine = engine or get_engine()
+    with target_engine.begin() as connection:
+        connection.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
     df.to_sql(
-        "raw_qld_registrations",
-        engine,
+        "raw_qld_registration_activity",
+        target_engine,
         schema="raw",
         if_exists="replace",
         index=False,
         method="multi",
         chunksize=1000,
     )
-
-    logger.info(f"Loaded {len(df)} QLD registration records to raw.raw_qld_registrations")
+    logger.info("Loaded %d QLD registration activity rows", len(df))
     return len(df)
 
 
-def run_qld_ingestion(download: bool = False) -> dict:
-    """Execute QLD registration data ingestion."""
-    stats = {"status": "success", "rows": 0}
-
-    if download:
-        download_qld_registrations()
-
-    df = load_qld_registrations()
-    if df.empty:
-        stats["status"] = "no_data"
-        return stats
-
-    rows = load_to_raw_schema(df)
-    stats["rows"] = rows
-
-    # Also compute and store fleet composition
-    composition = compute_fleet_composition(df)
-    if not composition.empty:
-        engine = get_engine()
-        composition.to_sql(
-            "raw_fleet_composition",
-            engine,
-            schema="raw",
-            if_exists="replace",
-            index=False,
-        )
-        stats["composition_rows"] = len(composition)
-
-    return stats
+def run_qld_ingestion(since: date | None = None) -> dict[str, int | str]:
+    """Fetch and persist QLD registration activity."""
+    activity = fetch_qld_registration_activity(since=since)
+    if activity.empty:
+        return {"status": "no_data", "rows": 0}
+    rows = load_to_raw_schema(activity)
+    return {
+        "status": "success",
+        "rows": rows,
+        "resources": int(activity["source_resource_id"].nunique()),
+    }

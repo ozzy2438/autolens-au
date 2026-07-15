@@ -1,0 +1,3 @@
+period,cpi_index,period_date,source,fetched_at
+2025Q4,140.7,2025-12-01,ci_seed,2026-07-15T00:00:00Z
+2026Q1,141.2,2026-03-01,ci_seed,2026-07-15T00:00:00Z
