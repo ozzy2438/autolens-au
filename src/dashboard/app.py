@@ -7,6 +7,7 @@ from src.dashboard.data_access import (
     load_model_metrics,
     load_refresh_status,
 )
+from src.dashboard.release_artifacts import ReleaseArtifactError, prepare_dashboard_artifacts
 
 st.set_page_config(
     page_title="AutoLens AU — Vehicle Pricing Intelligence",
@@ -20,8 +21,9 @@ try:
 except DashboardDataError:
     refresh = {"status": "status_unreadable", "completed_at": None}
 try:
+    prepare_dashboard_artifacts()
     metrics = load_model_metrics()
-except DashboardDataError:
+except (DashboardDataError, ReleaseArtifactError):
     metrics = {}
 
 st.title("🚗 AutoLens AU")

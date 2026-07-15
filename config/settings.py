@@ -14,6 +14,11 @@ DATA_DIR = PROJECT_ROOT / "data"
 MODEL_DIR = PROJECT_ROOT / "models" / "artifacts"
 
 
+def _project_path_from_env(name: str, default: Path) -> Path:
+    configured = Path(os.getenv(name, str(default)))
+    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+
+
 @dataclass
 class DatabaseConfig:
     """PostgreSQL database configuration."""
@@ -49,7 +54,11 @@ class NSWFuelConfig:
 class ModelConfig:
     """ML model configuration."""
 
-    model_path: Path = field(default_factory=lambda: MODEL_DIR / "hedonic_model_latest.joblib")
+    model_path: Path = field(
+        default_factory=lambda: _project_path_from_env(
+            "MODEL_PATH", MODEL_DIR / "hedonic_model_latest.joblib"
+        )
+    )
     version: str = field(default_factory=lambda: os.getenv("MODEL_VERSION", "1.0.0"))
     drift_threshold: float = 0.05  # 5% MAE degradation triggers retrain
     prediction_interval: float = 0.80  # 80% prediction interval
