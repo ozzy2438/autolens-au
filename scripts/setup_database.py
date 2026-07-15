@@ -27,9 +27,11 @@ CREATE SCHEMA IF NOT EXISTS core;
 
 -- Raw layer: raw_listings
 CREATE TABLE IF NOT EXISTS raw.raw_listings (
+    source_record_id TEXT,
     brand VARCHAR(100),
     year INTEGER,
     model VARCHAR(200),
+    variant VARCHAR(200),
     vehicle_type VARCHAR(50),
     title TEXT,
     condition VARCHAR(50),
@@ -47,6 +49,8 @@ CREATE TABLE IF NOT EXISTS raw.raw_listings (
     seats INTEGER,
     price NUMERIC,
     source VARCHAR(100),
+    listing_fingerprint VARCHAR(64),
+    snapshot_date DATE,
     ingested_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -91,6 +95,8 @@ CREATE TABLE IF NOT EXISTS raw.raw_cpi (
 CREATE INDEX IF NOT EXISTS idx_listings_brand ON raw.raw_listings(brand);
 CREATE INDEX IF NOT EXISTS idx_listings_year ON raw.raw_listings(year);
 CREATE INDEX IF NOT EXISTS idx_listings_price ON raw.raw_listings(price);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_listings_snapshot
+    ON raw.raw_listings(listing_fingerprint, snapshot_date);
 CREATE INDEX IF NOT EXISTS idx_fuel_station ON raw.raw_fuel_prices(stationcode);
 CREATE INDEX IF NOT EXISTS idx_rego_make ON raw.raw_qld_registrations(make);
 """

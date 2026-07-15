@@ -5,6 +5,7 @@ with distinct_vehicles as (
     select distinct
         brand,
         model,
+        variant,
         body_type,
         fuel_type,
         transmission,
@@ -17,19 +18,13 @@ with distinct_vehicles as (
 
 select
     {{ dbt_utils.generate_surrogate_key([
-        'brand', 'model', 'body_type', 'fuel_type', 'transmission',
+        'brand', 'model', 'variant', 'body_type', 'fuel_type', 'transmission',
         'drive_type', 'doors', 'seats', 'cylinders'
     ]) }} as vehicle_key,
     brand,
     model,
     
-    -- Badge/variant proxy: extract from model string
-    -- e.g., "camry ascent" -> variant = "ascent"
-    case
-        when position(' ' in model) > 0
-        then trim(substring(model from position(' ' in model) + 1))
-        else null
-    end as variant_proxy,
+    variant,
     
     body_type,
     fuel_type,

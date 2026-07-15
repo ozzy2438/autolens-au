@@ -1,249 +1,335 @@
-"""Kaggle dataset loader for Australian Vehicle Prices.
+"""Validated loaders for the two public Australian vehicle datasets on Kaggle."""
 
-Sources:
-- Primary: nelgiriyewithana/australian-vehicle-prices (~16,700 listings)
-- Secondary: lainguyn123/australia-car-market-data
-
-Compliance: These are publicly available research datasets on Kaggle.
-No ToS-protected marketplace scraping is performed.
-"""
-
+import hashlib
 import logging
+import re
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pandas as pd
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from config.database import get_engine
 from config.settings import DATA_DIR
 
 logger = logging.getLogger(__name__)
 
-# Dataset identifiers
 PRIMARY_DATASET = "nelgiriyewithana/australian-vehicle-prices"
 SECONDARY_DATASET = "lainguyn123/australia-car-market-data"
 
-# Expected columns in primary dataset
-PRIMARY_COLUMNS = [
-    "Brand",
-    "Year",
-    "Model",
-    "Car/Suv",
-    "Title",
-    "UsedOrNew",
-    "Transmission",
-    "Engine",
-    "DriveType",
-    "FuelType",
-    "FuelConsumption",
-    "Kilometres",
-    "ColourExtInt",
-    "Location",
-    "CylindersinEngine",
-    "BodyType",
-    "Doors",
-    "Seats",
-    "Price",
+DOMAIN_COLUMNS = [
+    "source_record_id",
+    "brand",
+    "year",
+    "model",
+    "variant",
+    "vehicle_type",
+    "title",
+    "condition",
+    "transmission",
+    "engine",
+    "drive_type",
+    "fuel_type",
+    "fuel_consumption",
+    "kilometres",
+    "colour",
+    "location",
+    "cylinders",
+    "body_type",
+    "doors",
+    "seats",
+    "price",
 ]
+LINEAGE_COLUMNS = ["source", "listing_fingerprint", "snapshot_date", "ingested_at"]
+RAW_COLUMNS = DOMAIN_COLUMNS + LINEAGE_COLUMNS
+REQUIRED_COLUMNS = {"brand", "model", "year", "price"}
+
+PRIMARY_MAPPING = {
+    "brand": "brand",
+    "year": "year",
+    "model": "model",
+    "carsuv": "vehicle_type",
+    "title": "title",
+    "usedornew": "condition",
+    "transmission": "transmission",
+    "engine": "engine",
+    "drivetype": "drive_type",
+    "fueltype": "fuel_type",
+    "fuelconsumption": "fuel_consumption",
+    "kilometres": "kilometres",
+    "colourextint": "colour",
+    "location": "location",
+    "cylindersinengine": "cylinders",
+    "bodytype": "body_type",
+    "doors": "doors",
+    "seats": "seats",
+    "price": "price",
+}
+
+SECONDARY_MAPPING = {
+    "id": "source_record_id",
+    "name": "title",
+    "price": "price",
+    "brand": "brand",
+    "model": "model",
+    "variant": "variant",
+    "series": "series",
+    "year": "year",
+    "gearbox": "transmission",
+    "type": "body_type",
+    "fuel": "fuel_type",
+    "status": "condition",
+    "kilometers": "kilometres",
+    "kilometres": "kilometres",
+    "cc": "engine",
+    "color": "colour",
+    "colour": "colour",
+    "seatingcapacity": "seats",
+}
+
+
+def _normalise_header(value: object) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value).strip().lower())
+
+
+def _parse_numeric(series: pd.Series) -> pd.Series:
+    cleaned = series.astype("string").str.replace(r"[^0-9.-]", "", regex=True)
+    return pd.to_numeric(cleaned.replace("", pd.NA), errors="coerce")
+
+
+def _validate_required_columns(df: pd.DataFrame, dataset_name: str) -> None:
+    missing = sorted(REQUIRED_COLUMNS - set(df.columns))
+    if missing:
+        msg = f"{dataset_name} is missing required canonical columns: {', '.join(missing)}"
+        raise ValueError(msg)
+
+
+def _canonicalise(
+    df: pd.DataFrame,
+    mapping: dict[str, str],
+    dataset_name: str,
+) -> pd.DataFrame:
+    renamed = df.rename(
+        columns={col: mapping.get(_normalise_header(col), col) for col in df.columns}
+    )
+
+    if dataset_name == "secondary":
+        if "model" not in renamed and "series" in renamed:
+            renamed["model"] = renamed["series"]
+        if "model" in renamed and "series" in renamed:
+            renamed["model"] = renamed["model"].fillna(renamed["series"])
+        if "body_type" in renamed:
+            renamed["vehicle_type"] = renamed["body_type"]
+        renamed["location"] = "Australia"
+
+    _validate_required_columns(renamed, dataset_name)
+    canonical = renamed.reindex(columns=DOMAIN_COLUMNS).copy()
+
+    for column in ("year", "kilometres", "cylinders", "doors", "seats", "price"):
+        canonical[column] = _parse_numeric(canonical[column])
+
+    for column in set(DOMAIN_COLUMNS) - {
+        "year",
+        "kilometres",
+        "cylinders",
+        "doors",
+        "seats",
+        "price",
+    }:
+        canonical[column] = canonical[column].astype("string").str.strip()
+        canonical[column] = canonical[column].replace("", pd.NA)
+
+    return canonical
+
+
+def _fingerprint_row(row: pd.Series) -> str:
+    identity_columns = ["brand", "model", "year", "kilometres", "price"]
+    identity = "|".join(
+        "" if pd.isna(row[col]) else str(row[col]).strip().lower() for col in identity_columns
+    )
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def add_lineage(
+    df: pd.DataFrame,
+    source: str,
+    snapshot_date: date | str | None = None,
+) -> pd.DataFrame:
+    """Add stable identity and temporal lineage to a canonical listing frame."""
+    snapshot = pd.Timestamp(snapshot_date or datetime.now(UTC).date()).date()
+    result = df.copy()
+    result["source"] = source
+    result["listing_fingerprint"] = result.apply(_fingerprint_row, axis=1)
+    result["snapshot_date"] = snapshot
+    result["ingested_at"] = pd.Timestamp.now(tz="UTC")
+    return result.reindex(columns=RAW_COLUMNS)
 
 
 def download_kaggle_dataset(dataset_id: str, output_dir: Path | None = None) -> Path:
-    """Download a dataset from Kaggle using the Kaggle API.
-
-    Requires KAGGLE_USERNAME and KAGGLE_KEY environment variables.
-    """
+    """Download and unzip one Kaggle dataset using environment credentials."""
     output_dir = output_dir or DATA_DIR / "raw"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        from kaggle.api.kaggle_api_extended import KaggleApi
+    from kaggle.api.kaggle_api_extended import KaggleApi
 
-        api = KaggleApi()
-        api.authenticate()
-        api.dataset_download_files(dataset_id, path=str(output_dir), unzip=True)
-        logger.info(f"Downloaded dataset: {dataset_id} to {output_dir}")
-    except Exception as e:
-        logger.error(f"Failed to download {dataset_id}: {e}")
-        raise
-
+    api = KaggleApi()
+    api.authenticate()
+    api.dataset_download_files(dataset_id, path=str(output_dir), unzip=True)
+    logger.info("Downloaded %s to %s", dataset_id, output_dir)
     return output_dir
 
 
-def load_primary_dataset(filepath: Path | None = None) -> pd.DataFrame:
-    """Load and perform initial cleaning of the primary AU vehicle prices dataset.
+def _resolve_csv(directory: Path, preferred_names: list[str], search_term: str) -> Path:
+    for name in preferred_names:
+        candidate = directory / name
+        if candidate.exists():
+            return candidate
+    matches = sorted(path for path in directory.glob("*.csv") if search_term in path.name.lower())
+    if not matches:
+        raise FileNotFoundError(f"No CSV matching '{search_term}' found in {directory}")
+    return matches[0]
 
-    Returns:
-        DataFrame with standardised column names and basic type corrections.
-    """
-    if filepath is None:
-        filepath = DATA_DIR / "raw" / "Australian Vehicle Prices.csv"
 
-    logger.info(f"Loading primary dataset from {filepath}")
-
-    df = pd.read_csv(filepath, low_memory=False)
-
-    # Standardise column names
-    column_mapping = {
-        "Brand": "brand",
-        "Year": "year",
-        "Model": "model",
-        "Car/Suv": "vehicle_type",
-        "Title": "title",
-        "UsedOrNew": "condition",
-        "Transmission": "transmission",
-        "Engine": "engine",
-        "DriveType": "drive_type",
-        "FuelType": "fuel_type",
-        "FuelConsumption": "fuel_consumption",
-        "Kilometres": "kilometres",
-        "ColourExtInt": "colour",
-        "Location": "location",
-        "CylindersinEngine": "cylinders",
-        "BodyType": "body_type",
-        "Doors": "doors",
-        "Seats": "seats",
-        "Price": "price",
-    }
-    df = df.rename(columns=column_mapping)
-
-    # Basic type corrections
-    df["year"] = pd.to_numeric(df["year"], errors="coerce")
-    df["kilometres"] = pd.to_numeric(
-        df["kilometres"].astype(str).str.replace(",", "").str.replace(" km", ""), errors="coerce"
+def load_primary_dataset(
+    filepath: Path | None = None,
+    snapshot_date: date | str | None = None,
+) -> pd.DataFrame:
+    """Load and validate the Australian Vehicle Prices dataset."""
+    filepath = filepath or _resolve_csv(
+        DATA_DIR / "raw",
+        ["Australian Vehicle Prices.csv"],
+        "vehicle",
     )
-    df["price"] = pd.to_numeric(
-        df["price"].astype(str).str.replace(",", "").str.replace("$", ""), errors="coerce"
-    )
-    df["doors"] = pd.to_numeric(df["doors"], errors="coerce")
-    df["seats"] = pd.to_numeric(df["seats"], errors="coerce")
-    df["cylinders"] = pd.to_numeric(df["cylinders"], errors="coerce")
-
-    # Add metadata
-    df["source"] = "kaggle_au_vehicle_prices"
-    df["ingested_at"] = pd.Timestamp.now(tz="UTC")
-
-    logger.info(f"Loaded {len(df)} records from primary dataset")
-    return df
+    canonical = _canonicalise(pd.read_csv(filepath, low_memory=False), PRIMARY_MAPPING, "primary")
+    result = add_lineage(canonical, "kaggle_au_vehicle_prices", snapshot_date)
+    logger.info("Loaded %s primary listings", len(result))
+    return result
 
 
-def load_secondary_dataset(filepath: Path | None = None) -> pd.DataFrame:
-    """Load secondary Australian Car Market dataset.
-
-    This provides additional listings for cross-validation and coverage.
-    """
+def load_secondary_dataset(
+    filepath: Path | None = None,
+    snapshot_date: date | str | None = None,
+) -> pd.DataFrame:
+    """Load and validate the Australia Car Market dataset."""
     if filepath is None:
-        filepath = DATA_DIR / "raw" / "australia_car_market.csv"
+        try:
+            filepath = _resolve_csv(
+                DATA_DIR / "raw",
+                ["australia_car_market.csv", "Australia Car Market.csv"],
+                "market",
+            )
+        except FileNotFoundError:
+            logger.warning("Secondary Kaggle CSV not found; continuing with the primary source")
+            return pd.DataFrame(columns=RAW_COLUMNS)
 
-    if not filepath.exists():
-        logger.warning(f"Secondary dataset not found at {filepath}, skipping")
-        return pd.DataFrame()
-
-    logger.info(f"Loading secondary dataset from {filepath}")
-    df = pd.read_csv(filepath, low_memory=False)
-
-    # Standardise to match primary schema (mapping depends on actual columns)
-    df["source"] = "kaggle_au_car_market"
-    df["ingested_at"] = pd.Timestamp.now(tz="UTC")
-
-    logger.info(f"Loaded {len(df)} records from secondary dataset")
-    return df
+    canonical = _canonicalise(
+        pd.read_csv(filepath, low_memory=False), SECONDARY_MAPPING, "secondary"
+    )
+    result = add_lineage(canonical, "kaggle_au_car_market", snapshot_date)
+    logger.info("Loaded %s secondary listings", len(result))
+    return result
 
 
 def deduplicate_listings(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove duplicate vehicle listings across sources.
-
-    Deduplication strategy:
-    - Same brand + model + year + kilometres + price = likely duplicate
-    - Keep the record with more complete data (fewer nulls)
-    """
-    dedup_cols = ["brand", "model", "year", "kilometres", "price"]
-    available_cols = [c for c in dedup_cols if c in df.columns]
-
+    """Keep the most complete copy of the same listing within one snapshot."""
+    dedup_cols = ["brand", "model", "year", "kilometres", "price", "snapshot_date"]
+    available_cols = [column for column in dedup_cols if column in df.columns]
     if not available_cols:
-        logger.warning("No deduplication columns found, returning as-is")
-        return df
+        return df.copy()
 
-    before_count = len(df)
-
-    # Score completeness
-    df["_completeness"] = df.notna().sum(axis=1)
-
-    # Sort by completeness (descending) and drop duplicates keeping first (most complete)
-    df = df.sort_values("_completeness", ascending=False)
-    df = df.drop_duplicates(subset=available_cols, keep="first")
-    df = df.drop(columns=["_completeness"])
-
-    after_count = len(df)
-    logger.info(
-        f"Deduplication: {before_count} -> {after_count} records ({before_count - after_count} removed)"
-    )
-
-    return df
+    scored = df.copy()
+    completeness_columns = [column for column in DOMAIN_COLUMNS if column in scored.columns]
+    scored["_completeness"] = scored[completeness_columns].notna().sum(axis=1)
+    scored = scored.sort_values("_completeness", ascending=False)
+    result = scored.drop_duplicates(subset=available_cols, keep="first")
+    return result.drop(columns="_completeness").reset_index(drop=True)
 
 
-def load_to_raw_schema(df: pd.DataFrame, table_name: str = "raw_listings") -> int:
-    """Load DataFrame into PostgreSQL raw schema.
+def load_to_raw_schema(
+    df: pd.DataFrame,
+    table_name: str = "raw_listings",
+    engine: Engine | None = None,
+) -> int:
+    """Upsert a snapshot batch while preserving all earlier snapshots."""
+    if df.empty:
+        return 0
+    if table_name != "raw_listings":
+        raise ValueError("Only the canonical raw_listings table is supported")
 
-    Returns:
-        Number of rows loaded.
-    """
-    engine = get_engine()
+    database = engine or get_engine()
+    batch_table = "_raw_listings_batch"
+    quoted_columns = ", ".join(f'"{column}"' for column in RAW_COLUMNS)
 
-    # Ensure raw schema exists
-    with engine.connect() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
-        conn.commit()
+    with database.begin() as connection:
+        connection.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
+        df.reindex(columns=RAW_COLUMNS).to_sql(
+            batch_table,
+            connection,
+            schema="raw",
+            if_exists="replace",
+            index=False,
+            method="multi",
+            chunksize=1000,
+        )
+        connection.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS raw.raw_listings "
+                "(LIKE raw._raw_listings_batch INCLUDING DEFAULTS)"
+            )
+        )
+        for ddl in (
+            "ADD COLUMN IF NOT EXISTS source_record_id TEXT",
+            "ADD COLUMN IF NOT EXISTS variant TEXT",
+            "ADD COLUMN IF NOT EXISTS listing_fingerprint TEXT",
+            "ADD COLUMN IF NOT EXISTS snapshot_date DATE",
+        ):
+            connection.execute(text(f"ALTER TABLE raw.raw_listings {ddl}"))
+        connection.execute(
+            text(
+                "DELETE FROM raw.raw_listings AS existing "
+                "USING raw._raw_listings_batch AS batch "
+                "WHERE existing.listing_fingerprint = batch.listing_fingerprint "
+                "AND existing.snapshot_date = batch.snapshot_date"
+            )
+        )
+        connection.execute(
+            text(
+                f"INSERT INTO raw.raw_listings ({quoted_columns}) "  # noqa: S608
+                f"SELECT {quoted_columns} FROM raw._raw_listings_batch"
+            )
+        )
+        connection.execute(text("DROP TABLE raw._raw_listings_batch"))
+        connection.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_listings_snapshot "
+                "ON raw.raw_listings (listing_fingerprint, snapshot_date)"
+            )
+        )
 
-    # Write to database
-    df.to_sql(
-        table_name,
-        engine,
-        schema="raw",
-        if_exists="replace",
-        index=False,
-        method="multi",
-        chunksize=1000,
-    )
-
-    logger.info(f"Loaded {len(df)} rows to raw.{table_name}")
+    logger.info("Loaded %s listings into raw.raw_listings", len(df))
     return len(df)
 
 
-def run_ingestion(download: bool = False) -> dict:
-    """Execute full ingestion pipeline.
-
-    Args:
-        download: If True, download fresh data from Kaggle.
-
-    Returns:
-        Dictionary with ingestion statistics.
-    """
-    stats = {"primary_rows": 0, "secondary_rows": 0, "total_after_dedup": 0}
-
+def run_ingestion(
+    download: bool = False,
+    snapshot_date: date | str | None = None,
+) -> dict[str, int | str]:
+    """Download, canonicalise, deduplicate, and persist both listing sources."""
     if download:
         download_kaggle_dataset(PRIMARY_DATASET)
         download_kaggle_dataset(SECONDARY_DATASET)
 
-    # Load datasets
-    primary_df = load_primary_dataset()
-    stats["primary_rows"] = len(primary_df)
+    primary = load_primary_dataset(snapshot_date=snapshot_date)
+    secondary = load_secondary_dataset(snapshot_date=snapshot_date)
+    combined = deduplicate_listings(pd.concat([primary, secondary], ignore_index=True))
+    loaded_rows = load_to_raw_schema(combined)
+    snapshot = str(pd.Timestamp(snapshot_date or datetime.now(UTC).date()).date())
 
-    secondary_df = load_secondary_dataset()
-    stats["secondary_rows"] = len(secondary_df)
-
-    # Combine
-    if not secondary_df.empty:
-        # Align columns before concat
-        combined_df = pd.concat([primary_df, secondary_df], ignore_index=True, sort=False)
-    else:
-        combined_df = primary_df
-
-    # Deduplicate
-    combined_df = deduplicate_listings(combined_df)
-    stats["total_after_dedup"] = len(combined_df)
-
-    # Load to database
-    load_to_raw_schema(combined_df)
-
-    logger.info(f"Ingestion complete: {stats}")
-    return stats
+    return {
+        "status": "success",
+        "snapshot_date": snapshot,
+        "primary_rows": len(primary),
+        "secondary_rows": len(secondary),
+        "loaded_rows": loaded_rows,
+    }

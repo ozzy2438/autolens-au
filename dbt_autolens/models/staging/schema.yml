@@ -20,6 +20,14 @@ sources:
             description: "Year of manufacture"
             data_tests:
               - not_null
+          - name: listing_fingerprint
+            description: "Stable natural-listing fingerprint"
+            data_tests:
+              - not_null
+          - name: snapshot_date
+            description: "Date on which the source snapshot was ingested"
+            data_tests:
+              - not_null
 
       - name: raw_fuel_prices
         description: "NSW fuel prices from FuelCheck API"
@@ -58,6 +66,10 @@ models:
           - not_null
       - name: vehicle_age
         description: "Calculated age of vehicle in years"
+      - name: listing_snapshot_date
+        description: "Source snapshot date used for temporal validation"
+        data_tests:
+          - not_null
 
   - name: stg_fuel_prices
     description: "Cleaned NSW fuel price data"

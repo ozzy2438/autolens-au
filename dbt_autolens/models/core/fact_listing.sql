@@ -14,13 +14,13 @@ final as (
         -- Keys
         l.listing_id,
         {{ dbt_utils.generate_surrogate_key([
-            'l.brand', 'l.model', 'l.body_type', 'l.fuel_type', 'l.transmission',
+            'l.brand', 'l.model', 'l.variant', 'l.body_type', 'l.fuel_type', 'l.transmission',
             'l.drive_type', 'l.doors', 'l.seats', 'l.cylinders'
         ]) }} as vehicle_key,
         loc.location_key,
         
-        -- Date dimension (simplified - using manufacture_year as date key)
-        l.manufacture_year as listing_year,
+        l.manufacture_year,
+        l.listing_snapshot_date,
         
         -- Measures
         l.price_aud,
