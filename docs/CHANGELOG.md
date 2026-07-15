@@ -19,8 +19,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Streamlit dashboard (4 pages)
 - GitHub Actions CI/CD
 - Monthly refresh automation
-- Data quality framework (dbt tests + Great Expectations)
+- Data quality framework (blocking pytest + dbt tests)
 - AI delivery log
+
+### Remediated
+- Removed unverified live-service, uptime, refresh, UAT and model-metric claims
+- Made Python tests, type checks and a seed-backed `dbt build` blocking CI gates
+- Added append-only listing snapshots and authoritative QLD, BITRE and RBA loaders
+- Added calibrated model bundles, real TreeSHAP explanations and measured drift evaluation
+- Connected all dashboard pages to database/artifact sources with honest unavailable states
+- Replaced unconditional monthly success text with measured refresh JSON and evidence PRs
 
 ---
 

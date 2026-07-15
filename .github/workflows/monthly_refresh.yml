@@ -128,7 +128,7 @@ jobs:
             models/artifacts/latest_drift.json
 
       - name: Publish newly trained model as prerelease
-        if: steps.model.outputs.trained == 'true'
+        if: steps.model.outputs.trained == 'true' && github.ref == 'refs/heads/main'
         run: |
           tag="model-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           gh release create "$tag" \
