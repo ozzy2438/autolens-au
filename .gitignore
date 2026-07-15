@@ -51,6 +51,7 @@ dbt_autolens/target/
 dbt_autolens/dbt_packages/
 dbt_autolens/logs/
 dbt_autolens/profiles.yml
+.github/dbt/.user.yml
 
 # Great Expectations
 great_expectations/uncommitted/

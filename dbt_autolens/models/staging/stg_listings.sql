@@ -8,11 +8,12 @@ with source as (
 renamed as (
     select
         -- Generate surrogate key
-        {{ dbt_utils.generate_surrogate_key(['brand', 'model', 'year', 'kilometres', 'price']) }} as listing_id,
+        {{ dbt_utils.generate_surrogate_key(['listing_fingerprint', 'snapshot_date']) }} as listing_id,
         
         -- Vehicle attributes
         trim(lower(brand)) as brand,
         trim(lower(model)) as model,
+        trim(lower(variant)) as variant,
         cast(year as integer) as manufacture_year,
         cast(kilometres as numeric) as kilometres,
         trim(lower(body_type)) as body_type,
@@ -34,6 +35,8 @@ renamed as (
         
         -- Metadata
         source as data_source,
+        listing_fingerprint,
+        cast(snapshot_date as date) as listing_snapshot_date,
         ingested_at,
         
         -- Derived: vehicle age
