@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 import pandas as pd
 import streamlit as st
 
-from src.api.schemas import ValuationRequest
+from src.api.schemas import MAX_MANUFACTURE_YEAR, MIN_MANUFACTURE_YEAR, ValuationRequest
 from src.api.valuation_engine import ValuationEngine
 from src.dashboard.components.charts import create_shap_waterfall, create_valuation_gauge
 from src.dashboard.data_access import DashboardDataError, get_listing_catalog
@@ -75,8 +75,8 @@ with st.form("valuation_form"):
         variant = st.text_input("Variant / badge", value="Unknown")
         year = st.slider(
             "Year of manufacture",
-            min_value=1980,
-            max_value=datetime.now(UTC).year + 1,
+            min_value=MIN_MANUFACTURE_YEAR,
+            max_value=min(datetime.now(UTC).year + 1, MAX_MANUFACTURE_YEAR),
             value=2020,
         )
         kilometres = st.number_input(

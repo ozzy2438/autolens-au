@@ -8,6 +8,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+MIN_MANUFACTURE_YEAR = 1980
+MAX_MANUFACTURE_YEAR = 2027
+
 # --- Request Models ---
 
 
@@ -17,7 +20,12 @@ class ValuationRequest(BaseModel):
     brand: str = Field(..., description="Vehicle manufacturer (e.g., 'Toyota', 'BMW')")
     model: str = Field(..., description="Vehicle model (e.g., 'Camry', '3 Series')")
     variant: str | None = Field(None, description="Badge or variant (e.g., 'GX', 'Sport')")
-    year: int = Field(..., ge=1980, le=2027, description="Year of manufacture")
+    year: int = Field(
+        ...,
+        ge=MIN_MANUFACTURE_YEAR,
+        le=MAX_MANUFACTURE_YEAR,
+        description="Year of manufacture",
+    )
     kilometres: int = Field(..., ge=0, le=1000000, description="Odometer reading in km")
     body_type: str | None = Field(None, description="Body type (Sedan, SUV, Hatchback, etc.)")
     fuel_type: str | None = Field(None, description="Fuel type (Petrol, Diesel, Hybrid, Electric)")
