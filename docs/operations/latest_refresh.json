@@ -1,0 +1,11 @@
+{
+  "status": "not_run",
+  "completed_at": null,
+  "sources": {},
+  "dbt": {
+    "status": "not_run",
+    "tests_passed": null,
+    "tests_failed": null
+  },
+  "note": "This file is updated only by a successful measured refresh workflow."
+}

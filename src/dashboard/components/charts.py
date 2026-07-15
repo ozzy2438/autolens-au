@@ -70,7 +70,7 @@ def create_shap_waterfall(
     drivers: list[dict],
     base_value: float = 0,
 ) -> go.Figure:
-    """Create waterfall chart showing SHAP-like feature contributions."""
+    """Create a waterfall chart from local TreeSHAP contributions."""
     features = [d["feature"] for d in drivers]
     impacts = [d["impact_aud"] for d in drivers]
 

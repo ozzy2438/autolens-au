@@ -1,77 +1,66 @@
-"""AutoLens AU Dashboard — Main Application.
-
-Streamlit multi-page dashboard providing:
-1. Instant Valuation — select vehicle params, get predicted price
-2. Depreciation Explorer — compare retention curves
-3. Market Monitor — fleet composition and fuel price trends
-4. Data Quality — pipeline health, freshness, test results
-
-Deployment target: Streamlit Cloud (not yet verified)
-"""
+"""AutoLens AU Streamlit landing page."""
 
 import streamlit as st
 
-# Page configuration
+from src.dashboard.data_access import (
+    DashboardDataError,
+    load_model_metrics,
+    load_refresh_status,
+)
+
 st.set_page_config(
     page_title="AutoLens AU — Vehicle Pricing Intelligence",
-    page_icon="\U0001f697",
+    page_icon="🚗",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Main page content
-st.title("\U0001f697 AutoLens AU")
+try:
+    refresh = load_refresh_status()
+except DashboardDataError:
+    refresh = {"status": "status_unreadable", "completed_at": None}
+try:
+    metrics = load_model_metrics()
+except DashboardDataError:
+    metrics = {}
+
+st.title("🚗 AutoLens AU")
 st.subheader("Australian Vehicle Pricing & Residual Value Platform")
+st.markdown(
+    """
+AutoLens AU is an **independent public data product under active pre-launch development**.
+It combines Australian vehicle listings with official government reference sources and exposes
+only data, test results, and model metrics that have actually been recorded.
 
-st.markdown("""
----
+| Page | Product |
+|---|---|
+| **Instant Valuation** | Calibrated LightGBM estimate with local TreeSHAP drivers |
+| **Depreciation Explorer** | Observed price-retention curves and residual-value projections |
+| **Market Monitor** | QLD registration activity, BITRE fleet, fuel, CPI and cash-rate context |
+| **Data Quality** | Source counts, freshness, workflow and dbt evidence |
 
-### Welcome to AutoLens AU
+If the database or calibrated artifact is absent, the corresponding page reports that dependency
+as unavailable; it does not substitute demo values.
+"""
+)
 
-This is an **independent public data product in pre-launch development** for Australian
-used-vehicle pricing intelligence, depreciation curves, and residual value estimates.
+st.markdown("### Method and source boundaries")
+st.markdown(
+    """
+- No scraping of carsales, Gumtree, Drive, or other ToS-protected marketplaces.
+- Listing history is stored by ingestion snapshot; repeated snapshots are idempotent.
+- A snapshot-based out-of-time evaluation is used only when at least two usable observations exist.
+- QLD data is labelled as **new-registration and transfer activity**, not total active fleet.
+"""
+)
 
-> **Current state:** no production refresh, trained model, or public service deployment has been
-> verified. Pages show availability honestly and will display results only from recorded artifacts.
-
-#### Features
-
-| Page | Description |
-|------|-------------|
-| **Instant Valuation** | Select make/model/year/km → predicted price + confidence band |
-| **Depreciation Explorer** | Compare retention curves across brands and models |
-| **Market Monitor** | Fleet composition trends, fuel prices, economic context |
-| **Data Quality** | Pipeline health, data freshness, test results |
-
-#### Data Sources
-
-- **Australian vehicle listings** (Kaggle source; load pending)
-- **NSW Fuel API** (client validation pending)
-- **QLD Vehicle Registrations** (resource validation pending)
-- **ABS CPI / RBA** (integration pending)
-
-#### Methodology
-
-- Hedonic pricing model (LightGBM) on log(price)
-- SHAP-based explainability for each valuation
-- Segment-level depreciation curves with parametric fitting
-- 3-year residual value projections with uncertainty bands
-
----
-
-*Built by [Osman Orka](https://github.com/ozzy2438)*
-*[GitHub Repository](https://github.com/ozzy2438/autolens-au) · API deployment pending*
-""")
-
-# Sidebar
 with st.sidebar:
-    st.markdown("### \U0001f4ca AutoLens AU")
+    st.markdown("### 📊 AutoLens AU")
     st.markdown("Independent Data Product")
     st.markdown("---")
-    st.markdown("**Status:** Pre-launch remediation")
-    st.markdown("**Last Refresh:** Not run")
-    st.markdown("**Model Version:** Not trained")
+    st.markdown(f"**Refresh status:** {refresh.get('status', 'unknown')}")
+    st.markdown(f"**Last refresh:** {refresh.get('completed_at') or 'Not run'}")
+    st.markdown(f"**Model version:** {metrics.get('model_version', 'Not trained')}")
+    st.markdown(f"**Validation:** {metrics.get('validation_strategy', 'Not measured')}")
     st.markdown("---")
-    st.markdown(
-        "[GitHub](https://github.com/ozzy2438/autolens-au)",
-    )
+    st.markdown("[GitHub](https://github.com/ozzy2438/autolens-au)")

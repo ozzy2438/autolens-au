@@ -1,76 +1,135 @@
-"""Instant Valuation page.
+"""Instant valuation backed by the calibrated local model artifact."""
 
-User selects vehicle parameters and receives:
-- Predicted retail price range with calibrated prediction interval
-- SHAP-based "why" explanations after model validation
-- Comparison to segment median
-"""
+from datetime import UTC, datetime
 
+import pandas as pd
 import streamlit as st
 
-st.set_page_config(
-    page_title="Instant Valuation | AutoLens AU", page_icon="\U0001f4b0", layout="wide"
-)
+from src.api.schemas import ValuationRequest
+from src.api.valuation_engine import ValuationEngine
+from src.dashboard.components.charts import create_shap_waterfall, create_valuation_gauge
+from src.dashboard.data_access import DashboardDataError, get_listing_catalog
 
-st.title("\U0001f4b0 Instant Valuation")
-st.markdown("Enter vehicle details for valuation once the verified model artifact is available.")
-st.warning(
-    "Valuation is unavailable: the first production model has not been trained. "
-    "No heuristic or placeholder price is shown as a model result.",
-)
+st.set_page_config(page_title="Instant Valuation | AutoLens AU", page_icon="💰", layout="wide")
 
-# Vehicle selection form
-col1, col2 = st.columns(2)
 
-with col1:
-    brand = st.selectbox(
-        "Brand",
-        options=[
-            "Toyota",
-            "Mazda",
-            "Hyundai",
-            "Ford",
-            "Holden",
-            "Kia",
-            "Mitsubishi",
-            "Volkswagen",
-            "BMW",
-            "Mercedes-Benz",
-            "Audi",
-            "Nissan",
-            "Honda",
-            "Subaru",
-            "Lexus",
-            "Land Rover",
-            "Tesla",
-            "Other",
-        ],
-        index=0,
-    )
-    model_name = st.text_input("Model", value="Camry")
-    year = st.slider("Year of Manufacture", min_value=1990, max_value=2026, value=2020)
-    kilometres = st.number_input(
-        "Kilometres", min_value=0, max_value=500000, value=45000, step=5000
-    )
+@st.cache_resource
+def _load_engine() -> ValuationEngine:
+    valuation_engine = ValuationEngine()
+    valuation_engine.load()
+    return valuation_engine
 
-with col2:
-    body_type = st.selectbox(
-        "Body Type",
-        options=["Sedan", "SUV", "Hatchback", "Wagon", "Ute", "Coupe", "Convertible", "Van"],
+
+@st.cache_data(ttl=300)
+def _load_catalog() -> pd.DataFrame:
+    return get_listing_catalog()
+
+
+try:
+    engine: ValuationEngine | None = _load_engine()
+    model_error = None
+except (FileNotFoundError, TypeError, OSError) as error:
+    engine = None
+    model_error = str(error)
+
+try:
+    catalog = _load_catalog()
+except DashboardDataError:
+    catalog = pd.DataFrame(columns=["brand", "model", "listing_count"])
+
+fallback_brands = [
+    "Toyota",
+    "Mazda",
+    "Hyundai",
+    "Ford",
+    "Kia",
+    "Mitsubishi",
+    "Volkswagen",
+    "BMW",
+    "Mercedes-Benz",
+]
+brands = sorted(catalog["brand"].dropna().unique().tolist()) or fallback_brands
+
+st.title("💰 Instant Valuation")
+if engine is None:
+    st.warning(
+        "Valuation is unavailable because no calibrated model bundle is present. "
+        f"No heuristic price will be shown. ({model_error})"
     )
-    fuel_type = st.selectbox(
-        "Fuel Type",
-        options=["Petrol", "Diesel", "Hybrid", "Electric", "LPG"],
-    )
-    transmission = st.selectbox(
-        "Transmission",
-        options=["Automatic", "Manual"],
-    )
-    location = st.selectbox(
-        "Location (State)",
-        options=["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"],
+else:
+    st.success(
+        f"Calibrated model v{engine.model.version if engine.model else 'unknown'} loaded. "
+        "Explanations below are local TreeSHAP contributions."
     )
 
-st.markdown("---")
+with st.form("valuation_form"):
+    left, right = st.columns(2)
+    with left:
+        brand = st.selectbox("Brand", options=brands)
+        matching_models = catalog.loc[catalog["brand"] == brand, "model"].dropna().unique().tolist()
+        model_name = (
+            st.selectbox("Model", matching_models)
+            if matching_models
+            else st.text_input("Model", value="Camry")
+        )
+        variant = st.text_input("Variant / badge", value="Unknown")
+        year = st.slider(
+            "Year of manufacture",
+            min_value=1980,
+            max_value=datetime.now(UTC).year + 1,
+            value=2020,
+        )
+        kilometres = st.number_input(
+            "Kilometres", min_value=0, max_value=1000000, value=45000, step=5000
+        )
+    with right:
+        body_type = st.selectbox(
+            "Body type", ["Sedan", "SUV", "Hatchback", "Wagon", "Ute", "Coupe", "Van"]
+        )
+        fuel_type = st.selectbox("Fuel type", ["Petrol", "Diesel", "Hybrid", "Electric", "LPG"])
+        transmission = st.selectbox("Transmission", ["Automatic", "Manual"])
+        drive_type = st.selectbox("Drive type", ["Unknown", "FWD", "RWD", "AWD", "4WD"])
+        location = st.selectbox("Location", ["NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"])
+    submitted = st.form_submit_button(
+        "🔎 Get valuation", type="primary", use_container_width=True, disabled=engine is None
+    )
 
-st.button("\U0001f50d Get Valuation", type="primary", use_container_width=True, disabled=True)
+if submitted and engine is not None:
+    result = engine.valuate(
+        ValuationRequest(
+            brand=brand,
+            model=str(model_name),
+            variant=variant,
+            year=year,
+            kilometres=int(kilometres),
+            body_type=body_type,
+            fuel_type=fuel_type,
+            transmission=transmission,
+            drive_type=drive_type,
+            location=location,
+        )
+    )
+    metric_columns = st.columns(4)
+    metric_columns[0].metric("Estimate", f"${result.point_estimate_aud:,.0f}")
+    metric_columns[1].metric("Lower bound", f"${result.lower_bound_aud:,.0f}")
+    metric_columns[2].metric("Upper bound", f"${result.upper_bound_aud:,.0f}")
+    metric_columns[3].metric(
+        "Segment median",
+        f"${result.segment_median_aud:,.0f}" if result.segment_median_aud else "Unavailable",
+    )
+    chart_left, chart_right = st.columns(2)
+    with chart_left:
+        st.plotly_chart(
+            create_valuation_gauge(
+                result.point_estimate_aud,
+                result.lower_bound_aud,
+                result.upper_bound_aud,
+            ),
+            use_container_width=True,
+        )
+    with chart_right:
+        st.plotly_chart(
+            create_shap_waterfall([driver.model_dump() for driver in result.price_drivers]),
+            use_container_width=True,
+        )
+    st.caption(result.disclaimer)
