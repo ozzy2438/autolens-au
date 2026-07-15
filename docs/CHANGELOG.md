@@ -24,6 +24,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Release-backed Streamlit model/metrics retrieval with SHA-256 verification
 - Lock-derived Streamlit requirements with blocking drift validation
 - Configurable six-hourly API/dashboard health evidence workflow
+- Container delivery preflight that safely skips publishing until a calibrated release exists
 
 ### Remediated
 - Removed unverified live-service, uptime, refresh, UAT and model-metric claims

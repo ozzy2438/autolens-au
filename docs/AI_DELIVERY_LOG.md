@@ -9,7 +9,7 @@
 
 | Metric | Value |
 |--------|-------|
-| Total PRs with AI assistance | 2 (1 merged, 1 active follow-up) |
+| Total PRs with AI assistance | 3 (2 merged, 1 active delivery fix) |
 | Initial delivery units | 8 direct-to-main commits |
 | Estimated time saved | Not independently measured |
 | Primary tools | Claude Code, GitHub Copilot, OpenAI Codex |
@@ -127,6 +127,19 @@ data refresh or model training run when this audit began.
     release list by the workflow's `model-*` tag contract
   - Partial/corrupt release pairs are rejected before either destination is replaced
   - Unconfigured endpoints record `not_configured` and never imply an uptime percentage
+- **Time saved:** Not independently measured; no numeric saving is claimed
+
+### Entry 008 — Container Delivery Preflight
+- **Date:** 2026-07-15
+- **PR:** [#3](https://github.com/ozzy2438/autolens-au/pull/3)
+- **AI Tool:** OpenAI Codex
+- **What was generated:**
+  - A model-release preflight gate separated from the GHCR publish job
+  - An explicit job summary when calibrated artifacts are not yet available
+- **What was reviewed/corrected:**
+  - The original fail-closed gate correctly prevented an invalid image but marked every pre-model
+    main build red; the new gate keeps publishing blocked while treating the absent prerequisite as
+    an intentional skip rather than a delivery failure
 - **Time saved:** Not independently measured; no numeric saving is claimed
 
 ---
