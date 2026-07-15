@@ -1,6 +1,7 @@
 """Command-line orchestration for AutoLens AU data ingestion."""
 
 import argparse
+import json
 import logging
 import sys
 from collections.abc import Sequence
@@ -81,7 +82,7 @@ def run_full_pipeline(
             source_result = {"status": "error", "error": str(error)}
 
         results["sources"][source] = source_result
-        if source_result.get("status") == "error":
+        if source_result.get("status") != "success":
             failed_sources.append(source)
 
     results["completed_at"] = datetime.now(UTC).isoformat()
@@ -120,6 +121,11 @@ def main() -> int:
         type=_parse_date,
         help="Earliest QLD activity date (YYYY-MM-DD; defaults to two years)",
     )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path for the machine-readable pipeline result",
+    )
     args = parser.parse_args()
 
     logger.info("Testing database connection")
@@ -134,6 +140,9 @@ def main() -> int:
         snapshot_date=args.snapshot_date,
         since=args.since,
     )
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result, indent=2, default=str) + "\n", encoding="utf-8")
     logger.info("Pipeline result: %s", result)
     return 1 if result["status"] == "failed" else 0
 
