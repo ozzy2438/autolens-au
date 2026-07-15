@@ -77,6 +77,21 @@ Vehicle pricing fundamentals can shift due to:
 
 ---
 
+## Deployment Health
+
+`.github/workflows/deployment_health.yml` runs point-in-time probes every six hours and can also be
+triggered manually. Configure these public repository variables only after deployment:
+
+- `API_HEALTH_URL`: the complete FastAPI `/health` URL
+- `DASHBOARD_URL`: the public Streamlit URL
+
+The API probe requires HTTP success, `status=healthy`, and `model_loaded=true`; the dashboard probe
+requires a non-empty successful response. Each run uploads its JSON observation for 90 days. A
+single probe or a collection of retained artifacts is not presented as an uptime percentage; an
+uptime claim requires an explicit observation window and aggregation policy.
+
+---
+
 ## Retrain Triggers
 
 The current script retrains when:

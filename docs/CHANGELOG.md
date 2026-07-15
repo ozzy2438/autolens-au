@@ -9,7 +9,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 - Initial project infrastructure
-- Data ingestion pipeline (Kaggle, NSW Fuel API, QLD Rego, ABS CPI)
+- Data ingestion pipeline (Kaggle, NSW Fuel API, QLD activity, BITRE, RBA CPI/cash rate)
 - PostgreSQL schema (raw, staging, core layers)
 - dbt project with Kimball star schema
 - Hedonic pricing model (LightGBM)
@@ -21,6 +21,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Monthly refresh automation
 - Data quality framework (blocking pytest + dbt tests)
 - AI delivery log
+- Release-backed Streamlit model/metrics retrieval with SHA-256 verification
+- Lock-derived Streamlit requirements with blocking drift validation
+- Configurable six-hourly API/dashboard health evidence workflow
 
 ### Remediated
 - Removed unverified live-service, uptime, refresh, UAT and model-metric claims

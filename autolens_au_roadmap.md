@@ -17,9 +17,10 @@ or month of operating history has happened.
 | Government sources | Implemented | Current QLD CKAN activity, BITRE Table 7, RBA G1 CPI and F1 cash-rate loaders |
 | Valuation artifact | Implemented, not trained on production data | Model/variant features, held-out interval calibration, TreeSHAP, measured metrics artifact |
 | Temporal evaluation | Guarded | Snapshot OOT only with ≥2 usable snapshots; single-snapshot fallback is labelled honestly |
-| Dashboard + API | Implemented, not deployed | Real DB/artifact paths with explicit unavailable states; no synthetic product outputs |
+| Dashboard + API | Implemented, not deployed | Real DB/artifact paths, verified model-release retrieval and explicit unavailable states |
 | Monthly operations | Implemented, not run | Measured status/changelog, dbt evidence, drift decision and release artifact workflow |
 | Container delivery | Implemented, not released | GHCR delivery refuses to publish without a calibrated model release |
+| Deployment health | Implemented, not configured | Six-hourly point-in-time API/dashboard probes require real public URL variables |
 | Production credentials | Blocked externally | GitHub currently has no DB, Kaggle, NSW FuelCheck or hosting secrets configured |
 | ≥3 refreshes / ≥3 UAT users | Calendar/user work | Cannot be truthfully completed by code or backfilled |
 
