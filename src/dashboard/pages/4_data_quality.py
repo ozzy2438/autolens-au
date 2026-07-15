@@ -9,6 +9,7 @@ from src.dashboard.data_access import (
     load_model_metrics,
     load_refresh_status,
 )
+from src.dashboard.formatting import format_optional_currency, format_optional_percentage
 
 st.set_page_config(page_title="Data Quality | AutoLens AU", page_icon="✅", layout="wide")
 st.title("✅ Data Quality & Pipeline Health")
@@ -63,10 +64,13 @@ else:
     interval = metrics.get("prediction_interval_metrics", {})
     model_columns = st.columns(4)
     model_columns[0].metric("Validation", metrics.get("validation_strategy", "unknown"))
-    model_columns[1].metric("MAE", f"${overall.get('mae', 0):,.0f}")
-    model_columns[2].metric("MdAPE", f"{overall.get('mdape', 0):.1f}%")
+    model_columns[1].metric("MAE", format_optional_currency(overall.get("mae")))
+    model_columns[2].metric("MdAPE", format_optional_percentage(overall.get("mdape")))
     coverage = interval.get("actual_coverage")
-    model_columns[3].metric("80% interval coverage", f"{coverage:.1%}" if coverage else "Unknown")
+    model_columns[3].metric(
+        "80% interval coverage",
+        format_optional_percentage(coverage, ratio=True),
+    )
 
 st.markdown("### Refresh details")
 st.json(refresh)
