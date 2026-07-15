@@ -1,27 +1,28 @@
-# AutoLens AU — Monthly Data Refresh Pipeline
-# Scheduled: 1st of every month at 02:00 UTC
-# Also triggerable manually via workflow_dispatch
-
 name: Monthly Refresh
 
 on:
   schedule:
-    - cron: '0 2 1 * *'  # 1st of month, 02:00 UTC
-  workflow_dispatch:  # Manual trigger
+    - cron: '0 2 1 * *'
+  workflow_dispatch:
     inputs:
       force_retrain:
-        description: 'Force model retrain regardless of drift'
+        description: Force model retraining
         required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: monthly-refresh
+  cancel-in-progress: false
 
 jobs:
   refresh-pipeline:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 90
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DB_HOST: ${{ secrets.DB_HOST }}
@@ -33,67 +34,123 @@ jobs:
       NSW_FUEL_API_SECRET: ${{ secrets.NSW_FUEL_API_SECRET }}
       KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
       KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+      GH_TOKEN: ${{ github.token }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install pinned project dependencies
         run: |
-          pip install -r requirements.txt
-          pip install dbt-core dbt-postgres
+          python -m pip install uv==0.6.13
+          uv sync --frozen --extra dbt
 
-      - name: Configure dbt
+      - name: Validate required credentials
         run: |
-          mkdir -p ~/.dbt
-          cat > ~/.dbt/profiles.yml << EOF
-          autolens_au:
-            target: prod
-            outputs:
-              prod:
-                type: postgres
-                host: ${{ secrets.DB_HOST }}
-                port: ${{ secrets.DB_PORT }}
-                user: ${{ secrets.DB_USER }}
-                password: ${{ secrets.DB_PASSWORD }}
-                dbname: ${{ secrets.DB_NAME }}
-                schema: public
-                threads: 4
-          EOF
+          uv run python - <<'PY'
+          import os
+          required = [
+              "DATABASE_URL", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD",
+              "NSW_FUEL_API_KEY", "NSW_FUEL_API_SECRET", "KAGGLE_USERNAME", "KAGGLE_KEY",
+          ]
+          missing = [name for name in required if not os.getenv(name)]
+          if missing:
+              raise SystemExit("Missing required secrets: " + ", ".join(missing))
+          PY
 
-      - name: Run data ingestion
-        run: python scripts/run_pipeline.py --monthly-refresh
+      - name: Restore latest model release when available
+        run: |
+          mkdir -p models/artifacts
+          tag="$(gh release list --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("model-"))][0].tagName // ""')"
+          if [[ -n "$tag" ]]; then
+            gh release download "$tag" --dir models/artifacts --pattern 'hedonic_model_latest.joblib'
+            gh release download "$tag" --dir models/artifacts --pattern 'latest_metrics.json'
+          fi
 
-      - name: Run dbt models
+      - name: Initialize database schema
+        run: uv run python scripts/setup_database.py
+
+      - name: Run source ingestion
+        run: >-
+          uv run python scripts/run_pipeline.py --monthly-refresh
+          --output artifacts/pipeline_result.json
+
+      - name: Build and test dbt project
         working-directory: dbt_autolens
         run: |
-          dbt deps
-          dbt run
-          dbt test
+          uv run dbt deps
+          uv run dbt build --profiles-dir ../.github/dbt --exclude resource_type:seed
 
-      - name: Check model drift and retrain if needed
+      - name: Evaluate drift and train when required
+        id: model
+        shell: bash
         run: |
-          python scripts/train_model.py --check-drift \
-            ${{ github.event.inputs.force_retrain == 'true' && '--force-retrain' || '' }}
+          before="$(sha256sum models/artifacts/hedonic_model_latest.joblib 2>/dev/null || true)"
+          if [[ "${{ inputs.force_retrain }}" == "true" ]]; then
+            uv run python scripts/train_model.py --force-retrain
+          else
+            uv run python scripts/train_model.py --check-drift
+          fi
+          after="$(sha256sum models/artifacts/hedonic_model_latest.joblib 2>/dev/null || true)"
+          if [[ "$before" != "$after" ]]; then
+            echo "trained=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "trained=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Update changelog
-        run: |
-          echo "## $(date +%Y-%m-%d) Monthly Refresh" >> docs/CHANGELOG.md
-          echo "" >> docs/CHANGELOG.md
-          echo "- Pipeline executed successfully" >> docs/CHANGELOG.md
-          echo "- dbt tests: all passing" >> docs/CHANGELOG.md
-          echo "- Model drift check: completed" >> docs/CHANGELOG.md
-          echo "" >> docs/CHANGELOG.md
+      - name: Write measured refresh evidence
+        run: >-
+          uv run python scripts/write_refresh_status.py
+          --pipeline artifacts/pipeline_result.json
+          --dbt-results dbt_autolens/target/run_results.json
+          --model-metrics models/artifacts/latest_metrics.json
+          --output docs/operations/latest_refresh.json
+          --changelog docs/CHANGELOG.md
 
-      - name: Commit changelog update
+      - name: Upload run evidence and model artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: monthly-refresh-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 90
+          path: |
+            artifacts/pipeline_result.json
+            dbt_autolens/target/run_results.json
+            docs/operations/latest_refresh.json
+            models/artifacts/hedonic_model_latest.joblib
+            models/artifacts/latest_metrics.json
+            models/artifacts/latest_drift.json
+
+      - name: Publish newly trained model as prerelease
+        if: steps.model.outputs.trained == 'true'
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add docs/CHANGELOG.md
-          git diff --staged --quiet || git commit -m "chore: monthly refresh changelog $(date +%Y-%m-%d)"
-          git push
+          tag="model-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          gh release create "$tag" \
+            models/artifacts/hedonic_model_latest.joblib \
+            models/artifacts/latest_metrics.json \
+            --target "$GITHUB_SHA" \
+            --title "AutoLens model ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}" \
+            --notes "Calibrated artifact produced by Monthly Refresh run ${GITHUB_RUN_ID}." \
+            --prerelease
+
+      - name: Open measured refresh evidence PR
+        if: github.ref == 'refs/heads/main'
+        run: |
+          branch="automation/monthly-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git switch -c "$branch"
+          git add docs/CHANGELOG.md docs/operations/latest_refresh.json
+          git commit -m "chore: record measured monthly refresh ${GITHUB_RUN_ID}"
+          git push --set-upstream origin "$branch"
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "chore: measured monthly refresh ${GITHUB_RUN_ID}" \
+            --body "Generated from successful ingestion, dbt build, and model workflow evidence."

@@ -196,7 +196,11 @@ def check_drift() -> bool:
         return True
 
     baseline = json.loads(metrics_path.read_text(encoding="utf-8"))
-    model = load_model()
+    try:
+        model = load_model()
+    except (OSError, TypeError, ValueError):
+        logger.warning("Stored artifact is incompatible or unreadable; retraining is required")
+        return True
     trained_through = model.trained_through_snapshot
     if trained_through is None:
         logger.info("Artifact has no snapshot boundary; waiting for a later snapshot")
