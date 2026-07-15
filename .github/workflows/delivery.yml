@@ -32,7 +32,20 @@ jobs:
       - name: Resolve calibrated model release
         id: model
         run: |
-          tag="$(gh release list --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("model-"))][0].tagName // ""')"
+          lookup_succeeded=false
+          tag=""
+          for attempt in 1 2 3; do
+            if tag="$(gh release list --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("model-"))][0].tagName // ""')"; then
+              lookup_succeeded=true
+              break
+            fi
+            sleep "$((attempt * 5))"
+          done
+          if [[ "$lookup_succeeded" != "true" ]]; then
+            echo "::error::GitHub release lookup failed after three attempts; publish safety could not be evaluated."
+            echo "Model release lookup failed; publishing was not attempted." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
           if [[ -z "$tag" ]]; then
             echo "release_available=false" >> "$GITHUB_OUTPUT"
             echo "No calibrated model release exists; container publishing was safely skipped." >> "$GITHUB_STEP_SUMMARY"
