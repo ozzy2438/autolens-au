@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: autolens_au
+      POSTGRES_USER: autolens
+      POSTGRES_PASSWORD: autolens_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autolens"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://autolens:autolens_dev@db:5432/autolens_au
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=autolens_au
+      - DB_USER=autolens
+      - DB_PASSWORD=autolens_dev
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  dashboard:
+    build: .
+    command: streamlit run src/dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - DATABASE_URL=postgresql://autolens:autolens_dev@db:5432/autolens_au
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+volumes:
+  pgdata:
