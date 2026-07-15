@@ -43,6 +43,39 @@ class TestPipelineIntegration:
         not HAS_TEST_DATABASE,
         reason="No DATABASE_URL — skip database integration tests",
     )
+    def test_dashboard_queries_match_source_schema(self):
+        """Every read-only dashboard query should execute against the canonical raw schema."""
+        from config.database import get_engine
+        from scripts.setup_database import SCHEMA_SQL, _sql_statements
+        from src.dashboard.data_access import (
+            get_bitre_vehicle_makes,
+            get_economic_context,
+            get_latest_fuel_prices,
+            get_listing_catalog,
+            get_listing_data,
+            get_listing_price_trends,
+            get_qld_activity,
+            get_source_health,
+        )
+
+        engine = get_engine()
+        with engine.begin() as connection:
+            for statement in _sql_statements(SCHEMA_SQL):
+                connection.execute(text(statement))
+
+        assert len(get_source_health()) == 6
+        assert get_listing_catalog().empty
+        assert get_listing_data().empty
+        assert get_qld_activity().empty
+        assert get_bitre_vehicle_makes().empty
+        assert get_latest_fuel_prices().empty
+        assert all(frame.empty for frame in get_economic_context())
+        assert get_listing_price_trends().empty
+
+    @pytest.mark.skipif(
+        not HAS_TEST_DATABASE,
+        reason="No DATABASE_URL — skip database integration tests",
+    )
     def test_listing_snapshots_are_idempotent_and_append_only(self):
         """A rerun replaces one snapshot while a later snapshot is retained."""
         from config.database import get_engine
