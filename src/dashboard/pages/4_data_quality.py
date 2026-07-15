@@ -10,6 +10,7 @@ from src.dashboard.data_access import (
     load_refresh_status,
 )
 from src.dashboard.formatting import format_optional_currency, format_optional_percentage
+from src.dashboard.release_artifacts import ReleaseArtifactError, prepare_dashboard_artifacts
 
 st.set_page_config(page_title="Data Quality | AutoLens AU", page_icon="✅", layout="wide")
 st.title("✅ Data Quality & Pipeline Health")
@@ -26,8 +27,9 @@ try:
 except DashboardDataError:
     health = pd.DataFrame()
 try:
+    prepare_dashboard_artifacts()
     metrics = load_model_metrics()
-except DashboardDataError:
+except (DashboardDataError, ReleaseArtifactError):
     metrics = {}
 
 available_rows = (

@@ -9,12 +9,14 @@ from src.api.schemas import MAX_MANUFACTURE_YEAR, MIN_MANUFACTURE_YEAR, Valuatio
 from src.api.valuation_engine import ValuationEngine
 from src.dashboard.components.charts import create_shap_waterfall, create_valuation_gauge
 from src.dashboard.data_access import DashboardDataError, get_listing_catalog
+from src.dashboard.release_artifacts import ReleaseArtifactError, prepare_dashboard_artifacts
 
 st.set_page_config(page_title="Instant Valuation | AutoLens AU", page_icon="💰", layout="wide")
 
 
 @st.cache_resource
 def _load_engine() -> ValuationEngine:
+    prepare_dashboard_artifacts()
     valuation_engine = ValuationEngine()
     valuation_engine.load()
     return valuation_engine
@@ -28,7 +30,7 @@ def _load_catalog() -> pd.DataFrame:
 try:
     engine: ValuationEngine | None = _load_engine()
     model_error = None
-except (FileNotFoundError, TypeError, OSError) as error:
+except (FileNotFoundError, ReleaseArtifactError, TypeError, OSError) as error:
     engine = None
     model_error = str(error)
 
