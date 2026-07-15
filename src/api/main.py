@@ -13,23 +13,21 @@ Auto-generated OpenAPI docs available at /docs (Swagger) and /redoc.
 
 from contextlib import asynccontextmanager
 from datetime import datetime
-from pathlib import Path
-from typing import Optional
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.schemas import (
-    ValuationRequest,
-    ValuationResponse,
+    ErrorResponse,
     HealthResponse,
     ModelInfoResponse,
-    ErrorResponse,
+    ValuationRequest,
+    ValuationResponse,
 )
 from src.api.valuation_engine import ValuationEngine
 
 # Global valuation engine instance
-engine: Optional[ValuationEngine] = None
+engine: ValuationEngine | None = None
 
 
 @asynccontextmanager
@@ -97,7 +95,7 @@ async def model_info():
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Model not loaded. Please train the model first.",
         )
-    
+
     return engine.get_model_info()
 
 
@@ -114,7 +112,7 @@ async def model_info():
 )
 async def get_valuation(request: ValuationRequest):
     """Generate vehicle valuation.
-    
+
     Accepts vehicle characteristics and returns:
     - Point estimate (predicted market price in AUD)
     - Confidence interval (lower and upper bounds)
@@ -126,22 +124,23 @@ async def get_valuation(request: ValuationRequest):
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Valuation model not available. Service is starting up or model needs training.",
         )
-    
+
     try:
         result = engine.valuate(request)
         return result
-    except ValueError as e:
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid vehicle parameters: {str(e)}",
-        )
-    except Exception as e:
+            detail=f"Invalid vehicle parameters: {exc!s}",
+        ) from exc
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Valuation failed: {str(e)}",
-        )
+            detail=f"Valuation failed: {exc!s}",
+        ) from exc
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

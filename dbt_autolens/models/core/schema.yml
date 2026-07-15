@@ -14,8 +14,20 @@ models:
           - not_null
       - name: vehicle_key
         description: "Foreign key to dim_vehicle"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_vehicle')
+                field: vehicle_key
       - name: location_key
         description: "Foreign key to dim_location"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_location')
+                field: location_key
       - name: price_aud
         description: "Listed price in Australian dollars"
         data_tests:

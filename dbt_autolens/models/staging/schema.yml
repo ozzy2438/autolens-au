@@ -27,7 +27,7 @@ sources:
           - name: stationcode
             description: "Unique station identifier"
           - name: price
-            description: "Fuel price (tenths of cents per litre)"
+            description: "Fuel price (cents per litre)"
 
       - name: raw_qld_registrations
         description: "QLD vehicle registration data from Open Data Portal"
@@ -66,6 +66,11 @@ models:
         description: "Station identifier"
       - name: price_per_litre
         description: "Fuel price in dollars per litre"
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0.5
+                max_value: 5.0
 
   - name: stg_qld_registrations
     description: "Cleaned QLD vehicle registration data"

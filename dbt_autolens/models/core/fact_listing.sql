@@ -5,10 +5,6 @@ with listings as (
     select * from {{ ref('stg_listings') }}
 ),
 
-vehicles as (
-    select * from {{ ref('dim_vehicle') }}
-),
-
 locations as (
     select * from {{ ref('dim_location') }}
 ),
@@ -17,7 +13,10 @@ final as (
     select
         -- Keys
         l.listing_id,
-        v.vehicle_key,
+        {{ dbt_utils.generate_surrogate_key([
+            'l.brand', 'l.model', 'l.body_type', 'l.fuel_type', 'l.transmission',
+            'l.drive_type', 'l.doors', 'l.seats', 'l.cylinders'
+        ]) }} as vehicle_key,
         loc.location_key,
         
         -- Date dimension (simplified - using manufacture_year as date key)
@@ -42,12 +41,6 @@ final as (
         l.ingested_at
     
     from listings l
-    left join vehicles v
-        on l.brand = v.brand
-        and l.model = v.model
-        and l.body_type = v.body_type
-        and l.fuel_type = v.fuel_type
-        and l.transmission = v.transmission
     left join locations loc
         on l.location_raw = loc.location_raw
 )

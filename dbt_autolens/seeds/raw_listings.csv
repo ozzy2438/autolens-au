@@ -1,0 +1,6 @@
+brand,year,model,vehicle_type,title,condition,transmission,engine,drive_type,fuel_type,fuel_consumption,kilometres,colour,location,cylinders,body_type,doors,seats,price,source,ingested_at
+Toyota,2020,RAV4,Used,Toyota RAV4 GX,Used,Automatic,2.0L,FWD,Petrol,7.0 L/100km,45000,White,Sydney NSW,4,SUV,5,5,35000,ci_seed,2026-07-15T00:00:00Z
+Toyota,2020,RAV4,Used,Toyota RAV4 Edge,Used,Automatic,2.5L,AWD,Petrol,7.5 L/100km,52000,Blue,Melbourne VIC,4,SUV,5,5,39000,ci_seed,2026-07-15T00:00:00Z
+Mazda,2019,CX-5,Used,Mazda CX-5 Maxx,Used,Automatic,2.5L,AWD,Petrol,7.4 L/100km,68000,Red,Brisbane QLD,4,SUV,5,5,31000,ci_seed,2026-07-15T00:00:00Z
+Ford,2018,Ranger,Used,Ford Ranger XLT,Used,Automatic,3.2L,4WD,Diesel,9.0 L/100km,92000,Black,Perth WA,5,Ute,4,5,42000,ci_seed,2026-07-15T00:00:00Z
+Tesla,2022,Model 3,Used,Tesla Model 3 RWD,Used,Automatic,Electric,RWD,Electric,0 L/100km,24000,White,Adelaide SA,0,Sedan,4,5,52000,ci_seed,2026-07-15T00:00:00Z

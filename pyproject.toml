@@ -48,8 +48,8 @@ dev = [
 ]
 
 dbt = [
-    "dbt-core>=1.7.0",
-    "dbt-postgres>=1.7.0",
+    "dbt-core==1.11.12",
+    "dbt-postgres==1.10.2",
 ]
 
 [tool.ruff]
@@ -57,19 +57,25 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "COM", "C4", "DTZ", "ISC", "ICN", "PIE", "PT", "RSE", "RET", "SLF", "SIM", "TID", "TCH", "ARG", "PTH", "ERA", "PL", "TRY", "RUF"]
-ignore = ["S101", "PLR0913", "TRY003", "ERA001"]
+select = ["E", "F", "W", "I", "UP", "S", "B", "RUF"]
+ignore = ["E501", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"config/settings.py" = ["S104"]
+"src/api/main.py" = ["S104"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "--cov=src --cov-report=term-missing"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.mypy]
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+check_untyped_defs = true
 
 [tool.black]
 line-length = 100

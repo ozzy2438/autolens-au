@@ -4,14 +4,15 @@ Creates the PostgreSQL schemas and tables required for AutoLens AU.
 Schemas: raw, staging, core
 """
 
-import sys
 import logging
+import sys
 from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text
+
 from config.database import get_engine, test_connection
 
 logging.basicConfig(level=logging.INFO)
@@ -101,9 +102,9 @@ def setup_database():
     if not test_connection():
         logger.error("Cannot connect to database. Check your .env configuration.")
         sys.exit(1)
-    
+
     logger.info("Database connection successful. Creating schemas and tables...")
-    
+
     engine = get_engine()
     with engine.connect() as conn:
         # Execute each statement separately
@@ -112,10 +113,12 @@ def setup_database():
             if statement and not statement.startswith("--"):
                 conn.execute(text(statement))
         conn.commit()
-    
+
     logger.info("Database setup complete!")
     logger.info("Schemas created: raw, staging, core")
-    logger.info("Tables created: raw.raw_listings, raw.raw_fuel_prices, raw.raw_qld_registrations, raw.raw_cpi")
+    logger.info(
+        "Tables created: raw.raw_listings, raw.raw_fuel_prices, raw.raw_qld_registrations, raw.raw_cpi"
+    )
 
 
 if __name__ == "__main__":
