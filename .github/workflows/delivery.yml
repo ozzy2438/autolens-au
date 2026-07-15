@@ -1,0 +1,82 @@
+name: Container Delivery
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: container-delivery
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Require and restore a calibrated model release
+        run: |
+          mkdir -p models/artifacts
+          tag="$(gh release list --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("model-"))][0].tagName // ""')"
+          if [[ -z "$tag" ]]; then
+            echo "No calibrated model release exists; refusing to publish a permanently degraded API."
+            exit 1
+          fi
+          gh release download "$tag" --dir models/artifacts --pattern 'hedonic_model_latest.joblib'
+          gh release download "$tag" --dir models/artifacts --pattern 'latest_metrics.json'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-
+
+      - name: Build and publish tested image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trigger configured API host
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [[ -n "$RENDER_DEPLOY_HOOK" ]]; then
+            curl --fail --silent --show-error --request POST "$RENDER_DEPLOY_HOOK"
+          else
+            echo "No API deploy hook configured; delivery completed at GHCR."
+          fi

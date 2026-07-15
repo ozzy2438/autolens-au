@@ -9,11 +9,11 @@
 
 | Metric | Value |
 |--------|-------|
-| Total PRs with AI assistance | 0 before audit remediation |
+| Total PRs with AI assistance | 1 active audit-remediation PR |
 | Initial delivery units | 8 direct-to-main commits |
 | Estimated time saved | Not independently measured |
-| Primary tools | Claude Code, GitHub Copilot |
-| Quality gate | Not established in the initial scaffold; remediation in progress |
+| Primary tools | Claude Code, GitHub Copilot, OpenAI Codex |
+| Quality gate | Blocking Ruff, mypy, pytest and seed-backed dbt build |
 
 The entries below are retrospective disclosures for direct commits, not PR records. Their original
 time-saved figures are self-reported estimates. CI was failing and the product had not completed a
@@ -95,6 +95,24 @@ data refresh or model training run when this audit began.
     during audit remediation because it could be mistaken for observed data
   - Refined user interaction flows
 - **Time saved:** ~3 hours
+
+### Entry 006 — Senior Audit Remediation
+- **Date:** 2026-07-15
+- **PR:** [#1](https://github.com/ozzy2438/autolens-au/pull/1)
+- **AI Tool:** OpenAI Codex
+- **What was generated:**
+  - Honest pre-launch status and removal of synthetic dashboard/model claims
+  - Blocking CI/dbt gates, canonical source loaders and append-only snapshots
+  - Calibrated model bundle, TreeSHAP integration and snapshot-aware drift workflow
+  - DB/artifact-backed Streamlit products and measured monthly delivery workflows
+- **What was reviewed/corrected:**
+  - Live source schemas were tested against current QLD, BITRE and RBA publications
+  - QLD `RECORD_DATE` type differences and BITRE comma-formatted counts were found in live checks
+    and corrected before commit
+  - Every pushed delivery unit was followed through GitHub Actions; environment-only mypy failures
+    were fixed in follow-up commits rather than ignored
+  - Production/UAT/calendar claims remain explicitly blocked until their evidence exists
+- **Time saved:** Not independently measured; no numeric saving is claimed
 
 ---
 

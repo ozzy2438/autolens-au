@@ -30,27 +30,26 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,dbt]"
+          python -m pip install uv==0.6.13
+          uv sync --frozen --extra dev --extra dbt
 
       - name: Check formatting with ruff
-        run: ruff format --check src/ config/ scripts/ tests/
+        run: uv run ruff format --check src/ config/ scripts/ tests/
 
       - name: Lint with ruff
-        run: ruff check src/ config/ scripts/ tests/ --output-format=github
+        run: uv run ruff check src/ config/ scripts/ tests/ --output-format=github
 
       - name: Type check with mypy
-        run: mypy src/ config/ scripts/ --ignore-missing-imports
+        run: uv run mypy src/ config/ scripts/ --ignore-missing-imports
 
       - name: Run tests
         env:
@@ -61,10 +60,10 @@ jobs:
           DB_USER: test_user
           DB_PASSWORD: test_password
         run: |
-          pytest tests/ -v --cov=src --cov-report=xml
+          uv run pytest tests/ -v --cov=src --cov-report=xml
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: coverage.xml
@@ -89,20 +88,21 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install dbt
-        run: pip install -e ".[dbt]"
+        run: |
+          python -m pip install uv==0.6.13
+          uv sync --frozen --extra dbt
 
       - name: dbt deps
         working-directory: dbt_autolens
-        run: dbt deps
+        run: uv run dbt deps
 
       - name: Seed CI source tables
         working-directory: dbt_autolens
@@ -112,7 +112,7 @@ jobs:
           DB_NAME: autolens_au_test
           DB_USER: test_user
           DB_PASSWORD: test_password
-        run: dbt seed --profiles-dir ../.github/dbt --full-refresh
+        run: uv run dbt seed --profiles-dir ../.github/dbt --full-refresh
 
       - name: Build and test dbt project
         working-directory: dbt_autolens
@@ -122,4 +122,4 @@ jobs:
           DB_NAME: autolens_au_test
           DB_USER: test_user
           DB_PASSWORD: test_password
-        run: dbt build --profiles-dir ../.github/dbt --exclude resource_type:seed
+        run: uv run dbt build --profiles-dir ../.github/dbt --exclude resource_type:seed
