@@ -151,7 +151,7 @@ class NSWFuelCheckClient:
 
 
 def load_fuel_prices_to_db(df: pd.DataFrame) -> int:
-    """Load fuel price data into PostgreSQL raw schema."""
+    """Load fuel price data into the configured raw schema."""
     engine = get_engine()
 
     with engine.connect() as conn:

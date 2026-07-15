@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from sqlalchemy import text
 
-HAS_TEST_DATABASE = bool(os.getenv("DATABASE_URL"))
+HAS_TEST_DATABASE = bool(os.getenv("DATABASE_URL") or os.getenv("SNOWFLAKE_ACCOUNT"))
 
 
 class TestPipelineIntegration:
@@ -14,7 +14,7 @@ class TestPipelineIntegration:
 
     @pytest.mark.skipif(
         not HAS_TEST_DATABASE,
-        reason="No DATABASE_URL — skip database integration tests",
+        reason="No configured test database — skip database integration tests",
     )
     def test_database_connection(self):
         """Database should be reachable."""
@@ -24,7 +24,7 @@ class TestPipelineIntegration:
 
     @pytest.mark.skipif(
         not HAS_TEST_DATABASE,
-        reason="No DATABASE_URL — skip database integration tests",
+        reason="No configured test database — skip database integration tests",
     )
     def test_schema_setup(self):
         """Database schemas should be creatable."""
@@ -34,19 +34,31 @@ class TestPipelineIntegration:
 
         engine = get_engine()
         with engine.connect() as conn:
-            conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
-            conn.execute(text("CREATE SCHEMA IF NOT EXISTS staging"))
-            conn.execute(text("CREATE SCHEMA IF NOT EXISTS core"))
+            if engine.dialect.name == "snowflake":
+                schemas = {
+                    row[0]
+                    for row in conn.execute(
+                        text(
+                            "SELECT schema_name FROM information_schema.schemata "
+                            "WHERE schema_name IN ('RAW', 'STAGING', 'CORE', 'MARTS')"
+                        )
+                    )
+                }
+                assert schemas == {"RAW", "STAGING", "CORE", "MARTS"}
+            else:
+                conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
+                conn.execute(text("CREATE SCHEMA IF NOT EXISTS staging"))
+                conn.execute(text("CREATE SCHEMA IF NOT EXISTS core"))
             conn.commit()
 
     @pytest.mark.skipif(
         not HAS_TEST_DATABASE,
-        reason="No DATABASE_URL — skip database integration tests",
+        reason="No configured test database — skip database integration tests",
     )
     def test_dashboard_queries_match_source_schema(self):
         """Every read-only dashboard query should execute against the canonical raw schema."""
         from config.database import get_engine
-        from scripts.setup_database import SCHEMA_SQL, _sql_statements
+        from scripts.setup_database import _sql_statements, schema_sql_for
         from src.dashboard.data_access import (
             get_bitre_vehicle_makes,
             get_economic_context,
@@ -60,7 +72,7 @@ class TestPipelineIntegration:
 
         engine = get_engine()
         with engine.begin() as connection:
-            for statement in _sql_statements(SCHEMA_SQL):
+            for statement in _sql_statements(schema_sql_for(engine.dialect.name)):
                 connection.execute(text(statement))
 
         assert len(get_source_health()) == 6
@@ -74,7 +86,7 @@ class TestPipelineIntegration:
 
     @pytest.mark.skipif(
         not HAS_TEST_DATABASE,
-        reason="No DATABASE_URL — skip database integration tests",
+        reason="No configured test database — skip database integration tests",
     )
     def test_listing_snapshots_are_idempotent_and_append_only(self):
         """A rerun replaces one snapshot while a later snapshot is retained."""

@@ -3,7 +3,11 @@
 from collections.abc import Generator
 from contextlib import contextmanager
 from functools import lru_cache
+from pathlib import Path
+from typing import Any
 
+from cryptography.hazmat.primitives import serialization
+from snowflake.sqlalchemy import URL
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -12,11 +16,68 @@ from sqlalchemy.pool import QueuePool
 from config.settings import db_config
 
 
+def _snowflake_private_key() -> bytes | None:
+    """Return a Snowflake-compatible DER key without persisting secret material."""
+    key_data: bytes | None = None
+    if db_config.snowflake_private_key:
+        key_data = db_config.snowflake_private_key.replace("\\n", "\n").encode()
+    elif db_config.snowflake_private_key_path:
+        key_data = Path(db_config.snowflake_private_key_path).expanduser().read_bytes()
+
+    if key_data is None:
+        return None
+
+    passphrase = (
+        db_config.snowflake_private_key_passphrase.encode()
+        if db_config.snowflake_private_key_passphrase
+        else None
+    )
+    private_key = serialization.load_pem_private_key(key_data, password=passphrase)
+    return private_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+
+def _snowflake_connection() -> tuple[Any, dict[str, Any]]:
+    """Build a key-pair-first Snowflake URL and connector arguments."""
+    if not db_config.snowflake_account or not db_config.snowflake_user:
+        raise ValueError("SNOWFLAKE_ACCOUNT and SNOWFLAKE_USER are required")
+
+    url_parameters: dict[str, str] = {
+        "account": db_config.snowflake_account,
+        "user": db_config.snowflake_user,
+        "database": db_config.snowflake_database,
+        "schema": db_config.snowflake_schema,
+        "warehouse": db_config.snowflake_warehouse,
+        "role": db_config.snowflake_role,
+    }
+    private_key = _snowflake_private_key()
+    connect_args: dict[str, Any] = {
+        "session_parameters": {"QUERY_TAG": db_config.snowflake_query_tag}
+    }
+    if private_key is not None:
+        connect_args["private_key"] = private_key
+    elif db_config.snowflake_password:
+        url_parameters["password"] = db_config.snowflake_password
+    else:
+        raise ValueError(
+            "SNOWFLAKE_PRIVATE_KEY, SNOWFLAKE_PRIVATE_KEY_PATH, or SNOWFLAKE_PASSWORD is required"
+        )
+    return URL(**url_parameters), connect_args
+
+
 @lru_cache(maxsize=4)
 def get_engine(database_url: str | None = None) -> Engine:
     """Create and cache an engine only when database access is requested."""
+    connect_args: dict[str, Any] = {}
+    target: Any = database_url or db_config.url
+    if database_url is None and db_config.resolved_backend == "snowflake":
+        target, connect_args = _snowflake_connection()
+
     return create_engine(
-        database_url or db_config.url,
+        target,
         poolclass=QueuePool,
         pool_size=5,
         max_overflow=10,
@@ -24,6 +85,7 @@ def get_engine(database_url: str | None = None) -> Engine:
         pool_recycle=3600,
         pool_pre_ping=True,
         echo=False,
+        connect_args=connect_args,
     )
 
 

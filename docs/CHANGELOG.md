@@ -10,7 +10,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - Initial project infrastructure
 - Data ingestion pipeline (Kaggle, NSW Fuel API, QLD activity, BITRE, RBA CPI/cash rate)
-- PostgreSQL schema (raw, staging, core layers)
+- PostgreSQL compatibility schema for local development and secretless PR tests
+- Snowflake production/CI databases with managed raw, staging, core and marts schemas
+- Least-privilege Snowflake role hierarchy and key-pair service identities
 - dbt project with Kimball star schema
 - Hedonic pricing model (LightGBM)
 - Depreciation curve analysis
@@ -25,6 +27,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Lock-derived Streamlit requirements with blocking drift validation
 - Configurable six-hourly API/dashboard health evidence workflow
 - Container delivery preflight that safely skips publishing until a calibrated release exists
+- Real Snowflake dbt integration job for trusted PRs and main, isolated from production
+- Snowflake SQLAlchemy runtime for Streamlit, FastAPI, ingestion and scheduled refreshes
 
 ### Remediated
 - Removed unverified live-service, uptime, refresh, UAT and model-metric claims
@@ -33,6 +37,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Added calibrated model bundles, real TreeSHAP explanations and measured drift evaluation
 - Connected all dashboard pages to database/artifact sources with honest unavailable states
 - Replaced unconditional monthly success text with measured refresh JSON and evidence PRs
+- Removed the human `ACCOUNTADMIN` identity from application and GitHub workflow execution
 
 ---
 

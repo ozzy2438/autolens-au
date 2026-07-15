@@ -21,17 +21,51 @@ def _project_path_from_env(name: str, default: Path) -> Path:
 
 @dataclass
 class DatabaseConfig:
-    """PostgreSQL database configuration."""
+    """Runtime database configuration with Snowflake production support."""
 
+    backend: str = field(default_factory=lambda: os.getenv("DATABASE_BACKEND", "").lower())
     host: str = field(default_factory=lambda: os.getenv("DB_HOST", "localhost"))
     port: int = field(default_factory=lambda: int(os.getenv("DB_PORT", "5432")))
     name: str = field(default_factory=lambda: os.getenv("DB_NAME", "autolens_au"))
     user: str = field(default_factory=lambda: os.getenv("DB_USER", "autolens"))
     password: str = field(default_factory=lambda: os.getenv("DB_PASSWORD", ""))
+    snowflake_account: str = field(default_factory=lambda: os.getenv("SNOWFLAKE_ACCOUNT", ""))
+    snowflake_user: str = field(default_factory=lambda: os.getenv("SNOWFLAKE_USER", ""))
+    snowflake_password: str = field(default_factory=lambda: os.getenv("SNOWFLAKE_PASSWORD", ""))
+    snowflake_private_key: str = field(
+        default_factory=lambda: os.getenv("SNOWFLAKE_PRIVATE_KEY", "")
+    )
+    snowflake_private_key_path: str = field(
+        default_factory=lambda: os.getenv("SNOWFLAKE_PRIVATE_KEY_PATH", "")
+    )
+    snowflake_private_key_passphrase: str = field(
+        default_factory=lambda: os.getenv("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE", "")
+    )
+    snowflake_database: str = field(
+        default_factory=lambda: os.getenv("SNOWFLAKE_DATABASE", "AUTOLENS_AU")
+    )
+    snowflake_schema: str = field(default_factory=lambda: os.getenv("SNOWFLAKE_SCHEMA", "RAW"))
+    snowflake_warehouse: str = field(
+        default_factory=lambda: os.getenv("SNOWFLAKE_WAREHOUSE", "AUTOLENS_WH")
+    )
+    snowflake_role: str = field(default_factory=lambda: os.getenv("SNOWFLAKE_ROLE", "AUTOLENS_APP"))
+    snowflake_query_tag: str = field(
+        default_factory=lambda: os.getenv("SNOWFLAKE_QUERY_TAG", "autolens_runtime")
+    )
+
+    @property
+    def resolved_backend(self) -> str:
+        """Select an explicit backend, otherwise infer Snowflake from its account setting."""
+        backend = self.backend or ("snowflake" if self.snowflake_account else "postgresql")
+        if backend in {"postgres", "postgresql"}:
+            return "postgresql"
+        if backend == "snowflake":
+            return backend
+        raise ValueError("DATABASE_BACKEND must be 'postgresql' or 'snowflake'")
 
     @property
     def url(self) -> str:
-        """SQLAlchemy connection URL."""
+        """PostgreSQL SQLAlchemy URL used for local development and secretless CI."""
         return os.getenv(
             "DATABASE_URL",
             f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}",

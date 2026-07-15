@@ -24,12 +24,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DB_HOST: ${{ secrets.DB_HOST }}
-      DB_PORT: ${{ secrets.DB_PORT }}
-      DB_NAME: ${{ secrets.DB_NAME }}
-      DB_USER: ${{ secrets.DB_USER }}
-      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      DATABASE_BACKEND: snowflake
+      SNOWFLAKE_ACCOUNT: ${{ vars.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_PIPELINE_USER }}
+      SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PIPELINE_PRIVATE_KEY }}
+      SNOWFLAKE_PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PIPELINE_PRIVATE_KEY_PASSPHRASE }}
+      SNOWFLAKE_ROLE: AUTOLENS_PIPELINE
+      SNOWFLAKE_DATABASE: AUTOLENS_AU
+      SNOWFLAKE_SCHEMA: RAW
+      SNOWFLAKE_WAREHOUSE: AUTOLENS_WH
+      SNOWFLAKE_QUERY_TAG: autolens_monthly_refresh_${{ github.run_id }}
       NSW_FUEL_API_KEY: ${{ secrets.NSW_FUEL_API_KEY }}
       NSW_FUEL_API_SECRET: ${{ secrets.NSW_FUEL_API_SECRET }}
       KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
@@ -56,7 +60,7 @@ jobs:
           uv run python - <<'PY'
           import os
           required = [
-              "DATABASE_URL", "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD",
+              "SNOWFLAKE_ACCOUNT", "SNOWFLAKE_USER", "SNOWFLAKE_PRIVATE_KEY",
               "NSW_FUEL_API_KEY", "NSW_FUEL_API_SECRET", "KAGGLE_USERNAME", "KAGGLE_KEY",
           ]
           missing = [name for name in required if not os.getenv(name)]
@@ -85,7 +89,7 @@ jobs:
         working-directory: dbt_autolens
         run: |
           uv run dbt deps
-          uv run dbt build --profiles-dir ../.github/dbt --exclude resource_type:seed
+          uv run dbt build --profiles-dir ../.github/dbt-snowflake --exclude resource_type:seed
 
       - name: Evaluate drift and train when required
         id: model

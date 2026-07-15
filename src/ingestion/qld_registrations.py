@@ -141,7 +141,7 @@ def fetch_qld_registration_activity(
 
 
 def load_to_raw_schema(df: pd.DataFrame, engine: Engine | None = None) -> int:
-    """Replace the bounded, authoritative QLD activity window in PostgreSQL."""
+    """Replace the bounded, authoritative QLD activity window in the configured database."""
     if df.empty:
         return 0
     target_engine = engine or get_engine()
