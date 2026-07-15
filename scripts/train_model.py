@@ -1,21 +1,37 @@
-"""Model training script.
-
-Usage:
-    python scripts/train_model.py              # Train new model
-    python scripts/train_model.py --check-drift    # Check drift, retrain if needed
-    python scripts/train_model.py --force-retrain  # Force retrain regardless
-"""
+"""Train, evaluate, calibrate, and monitor the AutoLens AU valuation model."""
 
 import argparse
 import json
 import logging
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config.settings import MODEL_DIR
+from config.settings import MODEL_DIR, model_config
+from src.models.evaluation import (
+    compute_drift_metrics,
+    evaluate_by_price_segment,
+    evaluate_model,
+    evaluate_prediction_intervals,
+    out_of_time_split,
+)
+from src.models.hedonic_model import (
+    ValuationModelBundle,
+    calibrate_prediction_interval,
+    load_model,
+    prediction_bounds,
+    prepare_training_data,
+    save_model,
+    train_baseline_model,
+    train_lgbm_model,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,152 +40,218 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def train_model():
-    """Train the hedonic pricing model."""
-    import numpy as np
-    import pandas as pd
-
+def _load_training_frame() -> pd.DataFrame:
+    """Load canonical listing snapshots from PostgreSQL or the local Kaggle cache."""
     from config.database import get_engine
-    from src.models.evaluation import (
-        evaluate_by_price_segment,
-        evaluate_model,
-    )
-    from src.models.hedonic_model import (
-        prepare_training_data,
-        save_model,
-        train_baseline_model,
-        train_lgbm_model,
-    )
-
-    logger.info("Loading training data from database...")
-    engine = get_engine()
 
     try:
-        df = pd.read_sql("SELECT * FROM raw.raw_listings", engine)
-    except Exception as e:
-        logger.error(f"Failed to load data: {e}")
-        logger.info("Attempting to load from CSV fallback...")
-        data_path = Path("data/raw/Australian Vehicle Prices.csv")
-        if data_path.exists():
-            df = pd.read_csv(data_path)
-        else:
-            logger.error("No data available. Run the pipeline first.")
-            sys.exit(1)
-
-    logger.info(f"Loaded {len(df)} records")
-
-    # Prepare features
-    X, y = prepare_training_data(df)
-
-    # Out-of-time split
-    if "year" in df.columns:
-        X_with_year = X.copy()
-        X_with_year["year"] = df.loc[X.index, "year"] if "year" in df.columns else 2020
-        train_mask = X_with_year["year"] <= 2021
-        test_mask = X_with_year["year"] > 2021
-
-        X_train, y_train = X[train_mask], y[train_mask]
-        X_test, y_test = X[test_mask], y[test_mask]
-
-        if len(X_test) < 100:
-            # Not enough future data; use random split
-            from sklearn.model_selection import train_test_split
-
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.2, random_state=42
-            )
-            logger.info("Using random split (insufficient future data for OOT)")
-        else:
-            logger.info(f"Using out-of-time split: train={len(X_train)}, test={len(X_test)}")
-    else:
-        from sklearn.model_selection import train_test_split
-
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    # Train baseline
-    logger.info("Training baseline model (Ridge)...")
-    baseline = train_baseline_model(X_train, y_train)
-    baseline_pred = baseline.predict(X_test)
-
-    # Train LightGBM
-    logger.info("Training LightGBM model...")
-    lgbm = train_lgbm_model(X_train, y_train)
-    lgbm_pred = lgbm.predict(X_test)
-
-    # Convert from log scale for evaluation
-    y_test_actual = np.expm1(y_test)
-    baseline_actual = np.expm1(baseline_pred)
-    lgbm_actual = np.expm1(lgbm_pred)
-
-    # Evaluate
-    logger.info("\n" + "=" * 60)
-    logger.info("MODEL EVALUATION RESULTS")
-    logger.info("=" * 60)
-
-    baseline_metrics = evaluate_model(y_test_actual, baseline_actual)
-    lgbm_metrics = evaluate_model(y_test_actual, lgbm_actual)
-
-    logger.info(
-        f"Baseline (Ridge): MAE=${baseline_metrics['overall']['mae']:,.0f}, MdAPE={baseline_metrics['overall']['mdape']:.1f}%"
-    )
-    logger.info(
-        f"LightGBM: MAE=${lgbm_metrics['overall']['mae']:,.0f}, MdAPE={lgbm_metrics['overall']['mdape']:.1f}%"
-    )
-
-    # Segment evaluation
-    segment_results = evaluate_by_price_segment(y_test_actual, lgbm_actual)
-    logger.info(f"\nSegment Performance:\n{segment_results.to_string()}")
-
-    # Save the best model (LightGBM)
-    model_path = save_model(lgbm)
-
-    # Save metrics
-    metrics_path = MODEL_DIR / "latest_metrics.json"
-    metrics_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(metrics_path, "w") as f:
-        json.dump(
-            {
-                "trained_at": datetime.now().isoformat(),
-                "baseline_metrics": baseline_metrics,
-                "lgbm_metrics": lgbm_metrics,
-                "training_samples": len(X_train),
-                "test_samples": len(X_test),
-            },
-            f,
-            indent=2,
-            default=str,
+        frame = pd.read_sql("SELECT * FROM raw.raw_listings", get_engine())
+    except Exception as database_error:
+        logger.warning(
+            "Database read failed: %s; trying the canonical local loader", database_error
         )
+        from src.ingestion.kaggle_loader import load_primary_dataset, load_secondary_dataset
 
-    logger.info(f"\nModel saved to: {model_path}")
-    logger.info(f"Metrics saved to: {metrics_path}")
-    logger.info("Training complete!")
+        primary = load_primary_dataset()
+        secondary = load_secondary_dataset()
+        frame = pd.concat([primary, secondary], ignore_index=True)
+    if frame.empty:
+        raise ValueError("No training data is available; run data ingestion first")
+    return frame
 
 
-def check_drift():
-    """Check if model performance has drifted."""
+def _validation_split(
+    metadata: pd.DataFrame,
+) -> tuple[pd.Index, pd.Index, str]:
+    """Prefer genuine snapshot OOT; clearly label a single-snapshot fallback."""
+    try:
+        train_meta, test_meta = out_of_time_split(metadata)
+        if len(train_meta) < 100 or len(test_meta) < 100:
+            raise ValueError("Snapshot holdout is too small for stable evaluation")
+        return train_meta.index, test_meta.index, "snapshot_out_of_time"
+    except ValueError as error:
+        logger.warning(
+            "Genuine OOT unavailable (%s); using a random single-snapshot holdout", error
+        )
+        train_index, test_index = train_test_split(
+            metadata.index,
+            test_size=model_config.test_size,
+            random_state=model_config.random_state,
+        )
+        return pd.Index(train_index), pd.Index(test_index), "random_holdout_single_snapshot"
+
+
+def _latest_snapshot(metadata: pd.DataFrame) -> str | None:
+    if "snapshot_date" not in metadata.columns:
+        return None
+    snapshots = pd.to_datetime(metadata["snapshot_date"], errors="coerce", utc=True).dropna()
+    return snapshots.max().date().isoformat() if not snapshots.empty else None
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, default=str) + "\n", encoding="utf-8")
+
+
+def train_model() -> dict[str, Any]:
+    """Train both models and persist a calibrated LightGBM artifact with metrics."""
+    frame = _load_training_frame()
+    features, target_log = prepare_training_data(frame)
+    metadata = frame.loc[features.index]
+    development_index, test_index, validation_strategy = _validation_split(metadata)
+
+    fit_index, calibration_index = train_test_split(
+        development_index,
+        test_size=0.2,
+        random_state=model_config.random_state,
+    )
+    X_fit, y_fit = features.loc[fit_index], target_log.loc[fit_index]
+    X_calibration = features.loc[calibration_index]
+    y_calibration = target_log.loc[calibration_index]
+    X_test, y_test = features.loc[test_index], target_log.loc[test_index]
+
+    baseline = train_baseline_model(X_fit, y_fit)
+    lgbm = train_lgbm_model(X_fit, y_fit)
+    interval_log_error = calibrate_prediction_interval(
+        lgbm,
+        X_calibration,
+        y_calibration,
+        confidence_level=model_config.prediction_interval,
+    )
+
+    baseline_predictions = np.expm1(baseline.predict(X_test))
+    lgbm_log_predictions = lgbm.predict(X_test)
+    lgbm_predictions = np.expm1(lgbm_log_predictions)
+    actual_prices = np.expm1(y_test.to_numpy())
+    lower_bounds, upper_bounds = prediction_bounds(lgbm_log_predictions, interval_log_error)
+
+    baseline_metrics = evaluate_model(actual_prices, baseline_predictions)
+    lgbm_metrics = evaluate_model(actual_prices, lgbm_predictions)
+    interval_metrics = evaluate_prediction_intervals(
+        actual_prices,
+        lower_bounds,
+        upper_bounds,
+        target_coverage=model_config.prediction_interval,
+    )
+    segment_metrics = evaluate_by_price_segment(actual_prices, lgbm_predictions).to_dict(
+        orient="records"
+    )
+
+    trained_at = datetime.now(UTC).isoformat()
+    trained_through_snapshot = _latest_snapshot(metadata.loc[development_index])
+    segment_frame = frame.loc[development_index].copy()
+    segment_frame["brand"] = segment_frame["brand"].astype("string").str.strip().str.casefold()
+    segment_frame["model"] = segment_frame["model"].astype("string").str.strip().str.casefold()
+    segment_frame["price"] = pd.to_numeric(segment_frame["price"], errors="coerce")
+    segment_medians = (
+        segment_frame.dropna(subset=["brand", "model", "price"])
+        .groupby(["brand", "model"])["price"]
+        .median()
+    )
+    bundle = ValuationModelBundle(
+        pipeline=lgbm,
+        interval_log_error=interval_log_error,
+        confidence_level=model_config.prediction_interval,
+        version=model_config.version,
+        trained_at=trained_at,
+        validation_strategy=validation_strategy,
+        trained_through_snapshot=trained_through_snapshot,
+        segment_medians_aud={
+            f"{brand}|{model}": float(median) for (brand, model), median in segment_medians.items()
+        },
+    )
+    model_path = save_model(bundle)
+
+    metrics: dict[str, Any] = {
+        "model_version": model_config.version,
+        "trained_at": trained_at,
+        "trained_through_snapshot": trained_through_snapshot,
+        "validation_strategy": validation_strategy,
+        "baseline_metrics": baseline_metrics,
+        "lgbm_metrics": lgbm_metrics,
+        "prediction_interval_metrics": interval_metrics,
+        "interval_log_error_quantile": interval_log_error,
+        "segment_metrics": segment_metrics,
+        "fit_samples": len(X_fit),
+        "calibration_samples": len(X_calibration),
+        "test_samples": len(X_test),
+        "artifact": model_path.name,
+    }
+    _write_json(MODEL_DIR / "latest_metrics.json", metrics)
+    logger.info(
+        "Training complete: MAE=$%.0f, MdAPE=%.1f%%, interval coverage=%.1f%% (%s)",
+        lgbm_metrics["overall"]["mae"],
+        lgbm_metrics["overall"]["mdape"],
+        interval_metrics["actual_coverage"] * 100,
+        validation_strategy,
+    )
+    return metrics
+
+
+def check_drift() -> bool:
+    """Evaluate the current artifact only on snapshots newer than its baseline."""
     metrics_path = MODEL_DIR / "latest_metrics.json"
-    if not metrics_path.exists():
-        logger.info("No baseline metrics found. Training new model.")
-        train_model()
-        return
+    if not metrics_path.exists() or not model_config.model_path.exists():
+        logger.info("No measured baseline artifact exists; training is required")
+        return True
 
-    # TODO: Evaluate current model on new data and compare
-    logger.info("Drift check: would compare current vs baseline metrics")
-    logger.info("No drift detected (placeholder)")
+    baseline = json.loads(metrics_path.read_text(encoding="utf-8"))
+    model = load_model()
+    trained_through = model.trained_through_snapshot
+    if trained_through is None:
+        logger.info("Artifact has no snapshot boundary; waiting for a later snapshot")
+        return False
+
+    frame = _load_training_frame()
+    snapshot_dates = pd.to_datetime(frame["snapshot_date"], errors="coerce", utc=True)
+    fresh = frame.loc[snapshot_dates > pd.Timestamp(trained_through, tz="UTC")].copy()
+    if fresh.empty:
+        report: dict[str, Any] = {
+            "status": "no_new_snapshot",
+            "drift_detected": False,
+            "trained_through_snapshot": trained_through,
+            "evaluated_at": datetime.now(UTC).isoformat(),
+        }
+        _write_json(MODEL_DIR / "latest_drift.json", report)
+        logger.info("No snapshot newer than %s; drift was not claimed or measured", trained_through)
+        return False
+
+    features, target_log = prepare_training_data(fresh)
+    predictions = np.expm1(model.pipeline.predict(features))
+    actual = np.expm1(target_log.to_numpy())
+    current_metrics = evaluate_model(actual, predictions)
+    report = compute_drift_metrics(
+        current_metrics,
+        baseline["lgbm_metrics"],
+        threshold=model_config.drift_threshold,
+    )
+    report.update(
+        {
+            "status": "evaluated",
+            "evaluated_rows": len(features),
+            "trained_through_snapshot": trained_through,
+            "latest_evaluated_snapshot": _latest_snapshot(fresh),
+        }
+    )
+    _write_json(MODEL_DIR / "latest_drift.json", report)
+    logger.info("Drift result: %s", report)
+    return bool(report["drift_detected"])
 
 
-def main():
-    parser = argparse.ArgumentParser(description="AutoLens AU Model Training")
-    parser.add_argument("--check-drift", action="store_true", help="Check for model drift")
-    parser.add_argument("--force-retrain", action="store_true", help="Force model retrain")
-
+def main() -> int:
+    parser = argparse.ArgumentParser(description="AutoLens AU model training and monitoring")
+    parser.add_argument("--check-drift", action="store_true", help="Evaluate newer snapshots")
+    parser.add_argument("--force-retrain", action="store_true", help="Force model retraining")
     args = parser.parse_args()
-
-    if args.check_drift and not args.force_retrain:
-        check_drift()
-    else:
-        train_model()
+    try:
+        should_train = args.force_retrain or not args.check_drift or check_drift()
+        if should_train:
+            train_model()
+    except Exception:
+        logger.exception("Model workflow failed")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

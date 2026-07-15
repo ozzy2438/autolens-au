@@ -1,21 +1,7 @@
-"""Model evaluation and monitoring for AutoLens AU.
-
-Evaluation philosophy (from README):
-- No perfect scores anywhere
-- Segment-level reporting (cheap vs premium, high-km vs low-km)
-- Out-of-time validation (train on past, test on future)
-- Calibrated prediction intervals
-- Honest limitation documentation
-
-Why out-of-time splits matter for pricing:
-Vehicle prices are non-stationary: market conditions shift, new models
-launch, supply chains fluctuate. A random holdout split can leak temporal
-information. Out-of-time splits simulate the actual production scenario:
-train on historical data, evaluate on future data.
-"""
+"""Model evaluation, snapshot validation, and performance drift metrics."""
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -147,7 +133,8 @@ def evaluate_prediction_intervals(
 
     # Average interval width (as % of actual)
     interval_width = upper_bounds - lower_bounds
-    relative_width = np.median(interval_width / y_true) * 100
+    valid_actuals = y_true > 0
+    relative_width = np.median(interval_width[valid_actuals] / y_true[valid_actuals]) * 100
 
     return {
         "target_coverage": target_coverage,
@@ -160,25 +147,50 @@ def evaluate_prediction_intervals(
 
 def out_of_time_split(
     df: pd.DataFrame,
-    date_col: str = "year",
-    train_cutoff: int = 2021,
+    date_col: str = "snapshot_date",
+    cutoff: str | pd.Timestamp | None = None,
+    purge_key: str | None = "listing_fingerprint",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Split data by time for out-of-time validation.
+    """Train on earlier listing snapshots and test on later snapshots.
 
-    Train on listings from before cutoff year,
-    test on listings from cutoff year onward.
-
-    This simulates the production scenario: predict future prices
-    based on historical patterns.
+    Manufacture year is deliberately rejected: it describes the vehicle, not
+    when its market price was observed. Repeated listing fingerprints are
+    purged from the training side to avoid cross-snapshot leakage.
     """
-    train = df[df[date_col] <= train_cutoff].copy()
-    test = df[df[date_col] > train_cutoff].copy()
+    if date_col not in df.columns:
+        raise ValueError(f"Snapshot column {date_col!r} is missing")
+    if pd.api.types.is_numeric_dtype(df[date_col]):
+        raise ValueError("A numeric manufacture year is not listing-observation time")
 
-    logger.info(
-        f"Out-of-time split: train={len(train)} (<=year {train_cutoff}), "
-        f"test={len(test)} (>year {train_cutoff})"
-    )
+    observed_at = pd.to_datetime(df[date_col], errors="coerce", utc=True)
+    if observed_at.isna().any():
+        raise ValueError(f"Snapshot column {date_col!r} contains invalid dates")
+    snapshot_days = observed_at.dt.normalize()
+    if snapshot_days.nunique() < 2:
+        raise ValueError("At least two listing snapshots are required for out-of-time validation")
 
+    if cutoff is None:
+        test_start = snapshot_days.max()
+        train_mask = snapshot_days < test_start
+        test_mask = snapshot_days == test_start
+    else:
+        cutoff_timestamp = pd.Timestamp(cutoff)
+        if cutoff_timestamp.tzinfo is None:
+            cutoff_timestamp = cutoff_timestamp.tz_localize("UTC")
+        else:
+            cutoff_timestamp = cutoff_timestamp.tz_convert("UTC")
+        train_mask = snapshot_days <= cutoff_timestamp.normalize()
+        test_mask = snapshot_days > cutoff_timestamp.normalize()
+
+    train = df.loc[train_mask].copy()
+    test = df.loc[test_mask].copy()
+    if purge_key and purge_key in df.columns:
+        test_keys = set(test[purge_key].dropna())
+        train = train.loc[~train[purge_key].isin(test_keys)].copy()
+    if train.empty or test.empty:
+        raise ValueError("Snapshot split produced an empty train or test set")
+
+    logger.info("Snapshot out-of-time split: train=%d, test=%d", len(train), len(test))
     return train, test
 
 
@@ -192,8 +204,8 @@ def compute_drift_metrics(
     Compares current evaluation metrics against baseline.
     Drift threshold: 5% MAE degradation triggers retrain alert.
     """
-    current_mae = current_metrics.get("overall", {}).get("mae", 0)
-    baseline_mae = baseline_metrics.get("overall", {}).get("mae", 0)
+    current_mae = float(current_metrics.get("overall", {}).get("mae", 0))
+    baseline_mae = float(baseline_metrics.get("overall", {}).get("mae", 0))
 
     if baseline_mae == 0:
         return {"status": "no_baseline", "drift_detected": False}
@@ -207,5 +219,5 @@ def compute_drift_metrics(
         "drift_detected": mae_change > threshold,
         "threshold_pct": threshold * 100,
         "recommendation": "RETRAIN" if mae_change > threshold else "MONITOR",
-        "evaluated_at": datetime.now().isoformat(),
+        "evaluated_at": datetime.now(UTC).isoformat(),
     }

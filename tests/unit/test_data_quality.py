@@ -107,20 +107,28 @@ class TestEvaluationMetrics:
 class TestOutOfTimeSplit:
     """Test temporal validation split."""
 
-    def test_split_by_year(self):
-        """Data should be split at cutoff year."""
+    def test_split_by_listing_snapshot_and_purge_overlap(self):
+        """Latest snapshots are held out and repeated listings are purged."""
         from src.models.evaluation import out_of_time_split
 
         df = pd.DataFrame(
             {
-                "year": [2019, 2020, 2020, 2021, 2022, 2023],
-                "price": [25000, 28000, 30000, 32000, 35000, 38000],
+                "snapshot_date": ["2026-06-01", "2026-06-01", "2026-07-01", "2026-07-01"],
+                "listing_fingerprint": ["repeated", "train-only", "repeated", "test-only"],
+                "price": [25000, 28000, 26000, 38000],
             }
         )
 
-        train, test = out_of_time_split(df, date_col="year", train_cutoff=2021)
+        train, test = out_of_time_split(df)
 
-        assert len(train) == 4  # 2019, 2020, 2020, 2021
-        assert len(test) == 2  # 2022, 2023
-        assert train["year"].max() <= 2021
-        assert test["year"].min() > 2021
+        assert list(train["listing_fingerprint"]) == ["train-only"]
+        assert set(test["listing_fingerprint"]) == {"repeated", "test-only"}
+
+    def test_manufacture_year_is_rejected_as_observation_time(self):
+        """Vehicle year must never be labelled as an out-of-time split."""
+        import pytest
+
+        from src.models.evaluation import out_of_time_split
+
+        with pytest.raises(ValueError, match="not listing-observation time"):
+            out_of_time_split(pd.DataFrame({"year": [2020, 2021]}), date_col="year")

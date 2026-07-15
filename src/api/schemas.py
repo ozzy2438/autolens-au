@@ -6,7 +6,7 @@ Mirrors the structure of commercial valuation APIs.
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # --- Request Models ---
 
@@ -16,6 +16,7 @@ class ValuationRequest(BaseModel):
 
     brand: str = Field(..., description="Vehicle manufacturer (e.g., 'Toyota', 'BMW')")
     model: str = Field(..., description="Vehicle model (e.g., 'Camry', '3 Series')")
+    variant: str | None = Field(None, description="Badge or variant (e.g., 'GX', 'Sport')")
     year: int = Field(..., ge=1980, le=2027, description="Year of manufacture")
     kilometres: int = Field(..., ge=0, le=1000000, description="Odometer reading in km")
     body_type: str | None = Field(None, description="Body type (Sedan, SUV, Hatchback, etc.)")
@@ -74,6 +75,8 @@ class PriceDriver(BaseModel):
 class ValuationResponse(BaseModel):
     """Vehicle valuation response."""
 
+    model_config = ConfigDict(protected_namespaces=())
+
     # Core valuation
     point_estimate_aud: float = Field(..., description="Predicted market price (AUD)")
     lower_bound_aud: float = Field(..., description="Lower bound of confidence interval (AUD)")
@@ -102,6 +105,8 @@ class ValuationResponse(BaseModel):
 class HealthResponse(BaseModel):
     """Health check response."""
 
+    model_config = ConfigDict(protected_namespaces=())
+
     status: str
     model_loaded: bool
     timestamp: datetime
@@ -111,11 +116,16 @@ class HealthResponse(BaseModel):
 class ModelInfoResponse(BaseModel):
     """Model information response."""
 
+    model_config = ConfigDict(protected_namespaces=())
+
     model_version: str
     trained_at: datetime | None = None
     training_samples: int | None = None
     overall_mae: float | None = None
     overall_mdape: float | None = None
+    validation_strategy: str | None = None
+    prediction_interval_coverage: float | None = None
+    trained_through_snapshot: str | None = None
     features_used: list[str] = Field(default_factory=list)
     last_refresh: datetime | None = None
 
