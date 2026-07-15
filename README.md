@@ -302,6 +302,14 @@ streamlit run src/dashboard/app.py
 uvicorn src.api.main:app --reload
 ```
 
+`uv.lock` is the dependency source of truth. `requirements.txt` is a generated, fully pinned
+Streamlit Cloud export; run `make requirements` after lock changes. CI rejects drift between them.
+
+For Streamlit Cloud, configure `MODEL_RELEASE_REPOSITORY=ozzy2438/autolens-au`. The dashboard
+then retrieves the newest complete `model-*` prerelease, verifies the release asset digests, and
+caches the calibrated model plus measured metrics. Public releases require no GitHub token; a
+read-only `GITHUB_TOKEN` can be supplied for private repositories or higher API limits.
+
 ---
 
 ## Intended Monthly Operations

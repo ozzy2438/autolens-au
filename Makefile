@@ -1,15 +1,23 @@
 # AutoLens AU — Development Commands
-.PHONY: help install dev test lint format run-api run-dashboard pipeline dbt-run dbt-test setup-db
+.PHONY: help install dev requirements requirements-check test lint format run-api run-dashboard pipeline dbt-run dbt-test setup-db
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 install: ## Install production dependencies
-	pip install -r requirements.txt
+	uv sync --frozen
 
 dev: ## Install development dependencies
-	pip install -e ".[dev,dbt]"
+	uv sync --frozen --extra dev --extra dbt
 	pre-commit install
+
+requirements: ## Export Streamlit Cloud dependencies from uv.lock
+	uv export --frozen --no-dev --no-hashes --no-emit-project --no-header --output-file requirements.txt
+
+requirements-check: ## Verify requirements.txt matches uv.lock
+	@tmp=$$(mktemp); trap 'rm -f "$$tmp"' EXIT; \
+	uv export --frozen --no-dev --no-hashes --no-emit-project --no-header --output-file "$$tmp" >/dev/null; \
+	diff -u requirements.txt "$$tmp"
 
 test: ## Run test suite
 	pytest tests/ -v --cov=src --cov-report=term-missing
