@@ -9,7 +9,7 @@
 
 | Metric | Value |
 |--------|-------|
-| Total PRs with AI assistance | 1 active audit-remediation PR |
+| Total PRs with AI assistance | 2 (1 merged, 1 active follow-up) |
 | Initial delivery units | 8 direct-to-main commits |
 | Estimated time saved | Not independently measured |
 | Primary tools | Claude Code, GitHub Copilot, OpenAI Codex |
@@ -112,6 +112,21 @@ data refresh or model training run when this audit began.
   - Every pushed delivery unit was followed through GitHub Actions; environment-only mypy failures
     were fixed in follow-up commits rather than ignored
   - Production/UAT/calendar claims remain explicitly blocked until their evidence exists
+- **Time saved:** Not independently measured; no numeric saving is claimed
+
+### Entry 007 — Deployment Evidence Follow-up
+- **Date:** 2026-07-15
+- **PR:** [#2](https://github.com/ozzy2438/autolens-au/pull/2)
+- **AI Tool:** OpenAI Codex
+- **What was generated:**
+  - GitHub Release-backed Streamlit model/metrics retrieval with digest verification
+  - Deterministic `uv.lock` → `requirements.txt` export and blocking CI drift check
+  - Scheduled API/dashboard point-in-time health workflow and JSON evidence
+- **What was reviewed/corrected:**
+  - GitHub's `latest` endpoint excludes prereleases, so model releases are selected from the
+    release list by the workflow's `model-*` tag contract
+  - Partial/corrupt release pairs are rejected before either destination is replaced
+  - Unconfigured endpoints record `not_configured` and never imply an uptime percentage
 - **Time saved:** Not independently measured; no numeric saving is claimed
 
 ---

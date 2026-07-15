@@ -1,0 +1,70 @@
+name: Deployment Health
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      api_health_url:
+        description: Optional API /health URL override
+        required: false
+        type: string
+      dashboard_url:
+        description: Optional dashboard URL override
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployment-health
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      API_HEALTH_URL: ${{ inputs.api_health_url || vars.API_HEALTH_URL }}
+      DASHBOARD_URL: ${{ inputs.dashboard_url || vars.DASHBOARD_URL }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install locked runtime
+        run: |
+          python -m pip install uv==0.6.13
+          uv sync --frozen
+
+      - name: Probe configured deployments
+        run: >-
+          uv run python scripts/check_deployment_health.py
+          --api-url "$API_HEALTH_URL"
+          --dashboard-url "$DASHBOARD_URL"
+          --output artifacts/deployment_health.json
+
+      - name: Add point-in-time result to job summary
+        if: always()
+        run: |
+          if [[ -f artifacts/deployment_health.json ]]; then
+            {
+              echo '```json'
+              python -m json.tool artifacts/deployment_health.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload health evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: deployment-health-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 90
+          path: artifacts/deployment_health.json
