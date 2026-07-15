@@ -1,0 +1,99 @@
+# AutoLens AU — Monthly Data Refresh Pipeline
+# Scheduled: 1st of every month at 02:00 UTC
+# Also triggerable manually via workflow_dispatch
+
+name: Monthly Refresh
+
+on:
+  schedule:
+    - cron: '0 2 1 * *'  # 1st of month, 02:00 UTC
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      force_retrain:
+        description: 'Force model retrain regardless of drift'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  refresh-pipeline:
+    runs-on: ubuntu-latest
+    
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      NSW_FUEL_API_KEY: ${{ secrets.NSW_FUEL_API_KEY }}
+      NSW_FUEL_API_SECRET: ${{ secrets.NSW_FUEL_API_SECRET }}
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install dbt-core dbt-postgres
+
+      - name: Configure dbt
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << EOF
+          autolens_au:
+            target: prod
+            outputs:
+              prod:
+                type: postgres
+                host: ${{ secrets.DB_HOST }}
+                port: ${{ secrets.DB_PORT }}
+                user: ${{ secrets.DB_USER }}
+                password: ${{ secrets.DB_PASSWORD }}
+                dbname: ${{ secrets.DB_NAME }}
+                schema: public
+                threads: 4
+          EOF
+
+      - name: Run data ingestion
+        run: python scripts/run_pipeline.py --monthly-refresh
+
+      - name: Run dbt models
+        working-directory: dbt_autolens
+        run: |
+          dbt deps
+          dbt run
+          dbt test
+
+      - name: Check model drift and retrain if needed
+        run: |
+          python scripts/train_model.py --check-drift \
+            ${{ github.event.inputs.force_retrain == 'true' && '--force-retrain' || '' }}
+
+      - name: Update changelog
+        run: |
+          echo "## $(date +%Y-%m-%d) Monthly Refresh" >> docs/CHANGELOG.md
+          echo "" >> docs/CHANGELOG.md
+          echo "- Pipeline executed successfully" >> docs/CHANGELOG.md
+          echo "- dbt tests: all passing" >> docs/CHANGELOG.md
+          echo "- Model drift check: completed" >> docs/CHANGELOG.md
+          echo "" >> docs/CHANGELOG.md
+
+      - name: Commit changelog update
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add docs/CHANGELOG.md
+          git diff --staged --quiet || git commit -m "chore: monthly refresh changelog $(date +%Y-%m-%d)"
+          git push
