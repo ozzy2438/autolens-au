@@ -6,8 +6,7 @@ Streamlit multi-page dashboard providing:
 3. Market Monitor — fleet composition and fuel price trends
 4. Data Quality — pipeline health, freshness, test results
 
-Deployment: Streamlit Cloud (free tier)
-URL: https://autolens-au.streamlit.app
+Deployment target: Streamlit Cloud (not yet verified)
 """
 
 import streamlit as st
@@ -15,13 +14,13 @@ import streamlit as st
 # Page configuration
 st.set_page_config(
     page_title="AutoLens AU — Vehicle Pricing Intelligence",
-    page_icon="\U0001F697",
+    page_icon="\U0001f697",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # Main page content
-st.title("\U0001F697 AutoLens AU")
+st.title("\U0001f697 AutoLens AU")
 st.subheader("Australian Vehicle Pricing & Residual Value Platform")
 
 st.markdown("""
@@ -29,8 +28,11 @@ st.markdown("""
 
 ### Welcome to AutoLens AU
 
-This is an **independent public data product** providing Australian used-vehicle
-pricing intelligence, depreciation curves, and residual value estimates.
+This is an **independent public data product in pre-launch development** for Australian
+used-vehicle pricing intelligence, depreciation curves, and residual value estimates.
+
+> **Current state:** no production refresh, trained model, or public service deployment has been
+> verified. Pages show availability honestly and will display results only from recorded artifacts.
 
 #### Features
 
@@ -43,10 +45,10 @@ pricing intelligence, depreciation curves, and residual value estimates.
 
 #### Data Sources
 
-- **~16,700 Australian vehicle listings** (Kaggle public datasets)
-- **NSW Fuel API** (live government data)
-- **QLD Vehicle Registrations** (annual fleet composition)
-- **ABS CPI / RBA** (economic context)
+- **Australian vehicle listings** (Kaggle source; load pending)
+- **NSW Fuel API** (client validation pending)
+- **QLD Vehicle Registrations** (resource validation pending)
+- **ABS CPI / RBA** (integration pending)
 
 #### Methodology
 
@@ -57,20 +59,19 @@ pricing intelligence, depreciation curves, and residual value estimates.
 
 ---
 
-*Built and operated by [Osman Orka](https://github.com/ozzy2438)*  
-*[GitHub Repository](https://github.com/ozzy2438/autolens-au) · [API Documentation](https://autolens-au-api.onrender.com/docs)*
+*Built by [Osman Orka](https://github.com/ozzy2438)*
+*[GitHub Repository](https://github.com/ozzy2438/autolens-au) · API deployment pending*
 """)
 
 # Sidebar
 with st.sidebar:
-    st.markdown("### \U0001F4CA AutoLens AU")
+    st.markdown("### \U0001f4ca AutoLens AU")
     st.markdown("Independent Data Product")
     st.markdown("---")
-    st.markdown("**Status:** \U0001F7E2 Operational")
-    st.markdown("**Last Refresh:** July 2026")
-    st.markdown("**Model Version:** 1.0.0")
+    st.markdown("**Status:** Pre-launch remediation")
+    st.markdown("**Last Refresh:** Not run")
+    st.markdown("**Model Version:** Not trained")
     st.markdown("---")
     st.markdown(
-        "[GitHub](https://github.com/ozzy2438/autolens-au) | "
-        "[API Docs](https://autolens-au-api.onrender.com/docs)"
+        "[GitHub](https://github.com/ozzy2438/autolens-au)",
     )

@@ -12,10 +12,10 @@ valuations over time.
 
 | Metric | Baseline | Alert Threshold | Action |
 |--------|----------|-----------------|--------|
-| MAE (overall) | ~$2,500 | >$2,625 (+5%) | Investigate |
-| MAE (overall) | ~$2,500 | >$2,750 (+10%) | Retrain |
-| MdAPE | ~8% | >9% | Investigate |
-| Coverage (80% PI) | 80% | <75% | Recalibrate intervals |
+| MAE (overall) | Pending first verified run | >5% above measured baseline | Investigate |
+| MAE (overall) | Pending first verified run | >10% above measured baseline | Retrain candidate |
+| MdAPE | Pending first verified run | Defined after baseline review | Investigate |
+| Coverage (80% PI) | Pending calibration | <75% after calibration | Recalibrate intervals |
 | Data freshness | Monthly | >45 days stale | Alert |
 
 ---
@@ -65,11 +65,11 @@ Vehicle pricing fundamentals can shift due to:
 
 ## Monitoring Log
 
-### July 2026 (Baseline)
-- Initial model trained
-- Baseline metrics established
-- Monitoring framework deployed
-- Next check: August 2026
+### July 2026 (Pre-launch)
+- No model trained
+- No baseline metrics established
+- Monitoring acceptance criteria documented only
+- First monitoring entry is blocked on a verified training run and later labelled snapshot
 
 ---
 

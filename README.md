@@ -1,31 +1,39 @@
 # AutoLens AU — Australian Vehicle Pricing & Residual Value Platform
 
-> **Independent public data product** — designed, built, and operated by [Osman Orka](https://github.com/ozzy2438)  
-> Live since July 2026 · [Dashboard](https://autolens-au.streamlit.app) · [API Docs](https://autolens-au-api.onrender.com/docs)
+> **Independent public data product** — designed and built by [Osman Orka](https://github.com/ozzy2438)
+> **Pre-launch:** the pipeline, model, dashboard, and API are under validation. No public deployment is currently claimed.
 
 ---
 
 ## What is AutoLens AU?
 
-AutoLens AU is a **live-operated, independent data product** that provides Australian used-vehicle pricing intelligence, depreciation curves, and residual value estimates. It combines ~17,000 Australian vehicle listings with live government data sources to deliver market-grade valuations.
+AutoLens AU is an **independent public data product in active development** for Australian
+used-vehicle pricing intelligence, depreciation curves, and residual-value estimates. The
+repository currently contains the application and data-platform scaffold; the first verified
+data load, model training run, and public deployment have not yet been completed.
 
-This is **not** a consulting engagement or anonymous client project. It is a public, verifiable data platform with:
-- A live dashboard URL
-- Monthly refresh cycles with logged changelogs
-- Documented UAT with external users
-- Model monitoring and drift detection
-- Full commit history demonstrating operational maturity
+This is **not** a consulting engagement or anonymous client project. Evidence is published only
+after it exists. The current state is:
+
+- CI, ingestion, dbt, modelling, API, and dashboard code are present and being remediated
+- No successful production refresh has been recorded
+- No trained production model or measured production metric is available
+- No public dashboard/API uptime or external UAT is claimed
+- Operational evidence will be added through timestamped workflow runs and pull requests
 
 ---
 
-## Architecture Overview
+## Target Architecture
+
+The diagram below is the intended architecture, not a claim that every component is currently
+deployed or populated.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        DATA SOURCES                              │
 ├─────────────┬──────────────┬───────────────┬───────────────────┤
 │ Kaggle AU   │ AU Car Mkt   │ NSW FuelCheck │ QLD Rego Data     │
-│ Vehicles    │ Dataset      │ API (live)    │ (annual refresh)  │
+│ Vehicles    │ Dataset      │ API client    │ (annual source)   │
 ├─────────────┴──────────────┴───────────────┴───────────────────┤
 │                     INGESTION LAYER                              │
 │              Python scripts + GitHub Actions                     │
@@ -80,13 +88,16 @@ This approach reflects how a data-services company like RedBook/carsales operate
 
 ---
 
-## Key Features
+## Planned Product Capabilities
+
+These capabilities remain acceptance criteria until a verified training and refresh run publishes
+their artifacts and metrics.
 
 ### Valuation Engine
 - **Hedonic pricing model**: Regularised linear baseline → LightGBM ensemble
 - **Features**: make, model, badge/variant proxy, year/age, odometer, body, fuel, transmission, drivetrain, location, age×km interaction
-- **Explainability**: SHAP global importance + per-valuation explanations
-- **Honest metrics**: MAE and MdAPE by segment, out-of-time validation, calibrated prediction intervals
+- **Explainability target**: SHAP global importance + per-valuation explanations
+- **Evaluation target**: MAE and MdAPE by segment, snapshot-based out-of-time validation, calibrated prediction intervals
 
 ### Depreciation & Residual Value
 - **Depreciation curves** by segment (make/model groups)
@@ -97,7 +108,7 @@ This approach reflects how a data-services company like RedBook/carsales operate
 - Deduplication rules (same vehicle across sources)
 - Outlier handling (documented, not silent)
 - Missing-value policy per column
-- dbt tests + Great Expectations suites in CI
+- dbt tests in CI; one validation framework will be retained as the production quality gate
 - Visible Data Quality page in dashboard
 
 ---
@@ -110,8 +121,12 @@ Public listings data **lacks true condition and variant granularity**. We acknow
 2. **Variant/badge**: Parsed from model strings where possible; wider prediction intervals where uncertain
 3. **Geographic coverage**: Biased toward metro areas; rural listings underrepresented
 4. **Temporal coverage**: 2023 snapshot with government data providing trend context
+5. **Temporal validation**: manufacture year is not listing time. A genuine out-of-time test is
+   impossible until multiple `snapshot_date` refreshes exist
+6. **Current readiness**: no production model is trained, prediction intervals are not calibrated,
+   and public service availability has not been established
 
-Where uncertainty is higher, prediction intervals are explicitly wider. This is a feature, not a bug.
+Once calibrated intervals exist, higher-uncertainty cases will be reported with wider ranges.
 
 ---
 
@@ -123,10 +138,10 @@ Where uncertainty is higher, prediction intervals are explicitly wider. This is 
 | Transformations | dbt Core | Industry standard; lineage + testing |
 | Orchestration | GitHub Actions | Monthly schedule + CI; doubles as "modern dev workflows" evidence |
 | ML | scikit-learn, LightGBM, SHAP | Production-grade, interpretable |
-| Dashboard | Streamlit | Rapid iteration, live deployment |
+| Dashboard | Streamlit | Rapid iteration; deployment planned |
 | API | FastAPI | Auto-generated OpenAPI docs; mirrors RedBook API shape |
 | Data Quality | Great Expectations, dbt tests | Validation as code |
-| Hosting | Neon (DB), Streamlit Cloud, Render (API) | Free tier = $0 operating cost |
+| Intended hosting | Neon (DB), Streamlit Cloud, Render (API) | Not deployed or verified yet |
 
 ---
 
@@ -211,9 +226,6 @@ autolens-au/
 │   └── database.py
 ├── data/
 │   └── .gitkeep
-├── notebooks/
-│   ├── 01_eda_exploration.ipynb
-│   └── 02_model_development.ipynb
 ├── .env.example
 ├── .gitignore
 ├── .pre-commit-config.yaml
@@ -231,14 +243,15 @@ autolens-au/
 
 ## How AI-Assisted Workflows Shaped Delivery
 
-This project uses AI-assisted development (Claude Code, GitHub Copilot) with full transparency:
+This project uses AI-assisted development with commit-level disclosure:
 
-- **Per-PR documentation** in `docs/AI_DELIVERY_LOG.md`
-- **Tagged PRs** indicating AI-assisted code generation
+- **Commit/PR documentation** in `docs/AI_DELIVERY_LOG.md`
+- **Tagged PRs** for work performed through a pull-request workflow
 - **Honest accounting**: what was generated vs what was reviewed/corrected
 - **Time savings quantified** where measurable
 
-Example: Test suite scaffolded in ~1h vs estimated ~1 day manual; dbt model boilerplate generated then refined for business logic.
+The initial scaffold was pushed directly to `main`, so it must not be described as “10+ PRs”.
+Time-saved figures are estimates and are labelled as such in the log.
 
 See [docs/AI_DELIVERY_LOG.md](docs/AI_DELIVERY_LOG.md) for the complete log.
 
@@ -290,16 +303,18 @@ uvicorn src.api.main:app --reload
 
 ---
 
-## Monthly Operations
+## Intended Monthly Operations
 
-Every month, the automated pipeline:
+After production credentials, data contracts, and quality gates are validated, the automated
+pipeline is intended to:
 1. Ingests fresh data from live sources (NSW Fuel API, QLD rego updates)
 2. Runs dbt transformations with full test suite
 3. Retrains model if drift detected (>5% MAE degradation)
 4. Updates dashboard metrics
 5. Logs results to `docs/CHANGELOG.md`
 
-See [docs/MONITORING.md](docs/MONITORING.md) for the model monitoring framework.
+The workflow has not yet completed a production refresh. See
+[docs/MONITORING.md](docs/MONITORING.md) for the monitoring acceptance criteria.
 
 ---
 
@@ -307,13 +322,17 @@ See [docs/MONITORING.md](docs/MONITORING.md) for the model monitoring framework.
 
 - **No perfect scores anywhere** — AUC-ROC 1.0 is a leak, not a result
 - **Segment-level reporting** — cheap vs premium, high-km vs low-km
-- **Out-of-time validation** — because pricing models must work on future data
+- **Out-of-time validation when data permits** — use listing `snapshot_date`, never manufacture year
 - **Calibrated prediction intervals** — 80% PI should contain 80% of actuals
 - **Honest limitation documentation** — what the model can't do is as important as what it can
 
 ### Why Out-of-Time Splits Matter for Pricing
 
-Vehicle prices are non-stationary: market conditions shift, new models launch, supply chains fluctuate. A random holdout split can leak temporal information (a 2023 listing price informing a 2022 prediction). Out-of-time splits simulate the actual production scenario: train on historical data, evaluate on future data. This is the only honest evaluation for a pricing model.
+Vehicle prices are non-stationary: market conditions shift, new models launch, and supply chains
+fluctuate. A random holdout can leak temporal information. A genuine out-of-time split trains on
+earlier listing snapshots and evaluates on later snapshots. The source data currently represents a
+single 2023 snapshot, so manufacture-year splitting is only an extrapolation test across vehicle
+ages, not out-of-time validation. True temporal validation will begin after refresh history exists.
 
 ---
 
