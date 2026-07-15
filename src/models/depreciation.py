@@ -37,7 +37,7 @@ def power_decay(age: np.ndarray, initial_value: float, exponent: float) -> np.nd
 
     Better fits some premium segments where early depreciation is steeper.
     """
-    return initial_value * np.power(1 + age, -exponent)
+    return cast(np.ndarray, initial_value * np.power(1 + age, -exponent))
 
 
 def compute_retention_curve(
