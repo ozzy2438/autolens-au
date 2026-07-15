@@ -45,6 +45,8 @@ data/*.json
 # Model artifacts
 models/artifacts/*.pkl
 models/artifacts/*.joblib
+models/artifacts/*.json
+artifacts/
 
 # dbt
 dbt_autolens/target/
@@ -52,10 +54,6 @@ dbt_autolens/dbt_packages/
 dbt_autolens/logs/
 dbt_autolens/profiles.yml
 .github/dbt/.user.yml
-
-# Great Expectations
-great_expectations/uncommitted/
-great_expectations/checkpoints/
 
 # Jupyter
 .ipynb_checkpoints/

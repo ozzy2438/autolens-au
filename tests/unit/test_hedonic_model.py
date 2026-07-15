@@ -137,25 +137,3 @@ class TestDataPreparation:
         _X, y = prepare_training_data(df)
         expected_log_price = np.log1p(35000)
         assert abs(y.iloc[0] - expected_log_price) < 0.001
-
-
-class TestPrediction:
-    """Test prediction functionality."""
-
-    def test_prediction_returns_required_fields(self):
-        """Prediction should return point estimate and bounds."""
-        # This would require a trained model; test the structure
-        result = {
-            "point_estimate": 35000.0,
-            "lower_bound": 29750.0,
-            "upper_bound": 40250.0,
-            "confidence_level": 0.80,
-            "currency": "AUD",
-        }
-
-        assert "point_estimate" in result
-        assert "lower_bound" in result
-        assert "upper_bound" in result
-        assert result["lower_bound"] < result["point_estimate"]
-        assert result["upper_bound"] > result["point_estimate"]
-        assert result["currency"] == "AUD"
