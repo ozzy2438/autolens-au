@@ -108,7 +108,7 @@ class TestDataPreparation:
             }
         )
 
-        X, y = prepare_training_data(df)
+        X, _y = prepare_training_data(df)
         assert len(X) == 2  # Only 35000 and 25000 should remain
 
     def test_target_is_log_price(self):
@@ -134,7 +134,7 @@ class TestDataPreparation:
             }
         )
 
-        X, y = prepare_training_data(df)
+        _X, y = prepare_training_data(df)
         expected_log_price = np.log1p(35000)
         assert abs(y.iloc[0] - expected_log_price) < 0.001
 

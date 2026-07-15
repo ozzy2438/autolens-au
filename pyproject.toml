@@ -40,8 +40,8 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.21.0",
     "black>=23.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.5.0",
+    "ruff==0.15.21",
+    "mypy==1.19.1",
     "pre-commit>=3.4.0",
     "ipykernel>=6.25.0",
     "jupyter>=1.0.0",
@@ -61,7 +61,7 @@ select = ["E", "F", "W", "I", "UP", "S", "B", "RUF"]
 ignore = ["E501", "S101"]
 
 [tool.ruff.lint.per-file-ignores]
-"config/settings.py" = ["S104"]
+"config/settings.py" = ["S104", "S105"]
 "src/api/main.py" = ["S104"]
 
 [tool.pytest.ini_options]
