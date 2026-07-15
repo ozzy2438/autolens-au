@@ -130,7 +130,7 @@ def main() -> int:
 
     logger.info("Testing database connection")
     if not test_connection():
-        logger.error("Database connection failed; check DATABASE_URL or DB_* settings")
+        logger.error("Database connection failed; check PostgreSQL or Snowflake settings")
         return 1
 
     sources = (args.source,) if args.source else SOURCE_NAMES

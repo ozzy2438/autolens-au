@@ -1,21 +1,18 @@
-# Copy this file to ~/.dbt/profiles.yml for local Snowflake development.
-# Never store the private key or its passphrase in this repository.
-
 autolens_au:
-  target: dev
+  target: runtime
   outputs:
-    dev:
+    runtime:
       type: snowflake
       account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
       user: "{{ env_var('SNOWFLAKE_USER') }}"
-      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+      private_key: "{{ env_var('SNOWFLAKE_PRIVATE_KEY') }}"
       private_key_passphrase: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '') }}"
-      role: "{{ env_var('SNOWFLAKE_ROLE', 'AUTOLENS_PIPELINE') }}"
-      database: "{{ env_var('SNOWFLAKE_DATABASE', 'AUTOLENS_AU') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
       warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'AUTOLENS_WH') }}"
       schema: RAW
       threads: 4
       client_session_keep_alive: false
-      query_tag: autolens_dbt_local
+      query_tag: "{{ env_var('SNOWFLAKE_QUERY_TAG', 'autolens_dbt') }}"
       connect_retries: 3
       connect_timeout: 30

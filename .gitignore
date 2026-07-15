@@ -35,6 +35,9 @@ ENV/
 .env
 .env.local
 .env.production
+*.p8
+*.private.pem
+rsa_key*
 
 # Data files (download locally, don't commit)
 data/*.csv
@@ -54,6 +57,7 @@ dbt_autolens/dbt_packages/
 dbt_autolens/logs/
 dbt_autolens/profiles.yml
 .github/dbt/.user.yml
+.github/dbt-snowflake/.user.yml
 
 # Jupyter
 .ipynb_checkpoints/

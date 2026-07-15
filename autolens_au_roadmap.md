@@ -92,8 +92,8 @@ Public listings data lacks true `condition` and `variant` granularity. State thi
 
 ## Phase 2 — Database & pipeline architecture (Weeks 1–2)
 
-- **PostgreSQL** (the ad names SQL Server or Postgres — match it). Free hosting: Neon or Supabase keeps it live for months at $0.
-- Layered model: `raw` → `staging` → `core`, with a **Kimball star schema** in core: `fact_listing`, `dim_vehicle` (make/model/variant/body/fuel/transmission), `dim_location`, `dim_year`. Listing observation time remains the fact's snapshot date.
+- **Snowflake for production**, with PostgreSQL retained as a secretless local/PR compatibility backend. This adds warehouse governance, managed-access RBAC and real cloud-warehouse CI evidence while preserving the Postgres signal named in the ad.
+- Layered model: `raw` → `staging` → `core`/`marts`, with a **Kimball star schema** in core: `fact_listing`, `dim_vehicle` (make/model/variant/body/fuel/transmission), `dim_location`, `dim_year`. Listing observation time remains the fact's snapshot date.
 - **dbt** for transformations + tests; lineage graph in the docs.
 - **Orchestration: GitHub Actions on a monthly schedule** (plus on-demand). Airflow is overkill here and GitHub Actions doubles as your "modern development workflows including GitHub" evidence: PRs, protected main, CI running dbt tests, tagged releases.
 - Every monthly refresh produces a **changelog entry**: rows ingested, tests passed/failed, model metrics on new data. Twelve weeks in, this changelog is your proof of operation.
@@ -155,13 +155,13 @@ Replace the five anonymous clients with a section titled **`INDEPENDENT DATA PRO
 
 ### AutoLens AU headline entry (future template; do not publish before verification)
 > **AutoLens AU — Australian Vehicle Pricing & Residual Value Platform** · Independent public data product, live since [month] 2026 · github.com/ozzy2438/autolens-au · [demo URL]
-> - Designed, built and operate an end-to-end Australian used-vehicle pricing product: PostgreSQL + dbt pipeline (Kimball star schema) combining ~17k AU listings with live government sources (NSW FuelCheck API, QLD registration data), refreshed monthly via GitHub Actions with automated data-quality tests.
+> - Designed, built and operate an end-to-end Australian used-vehicle pricing product: Snowflake + dbt pipeline (managed RBAC, Kimball star schema) combining ~17k AU listings with live government sources (NSW FuelCheck API, QLD registration data), refreshed monthly via GitHub Actions with automated data-quality tests.
 > - Hedonic valuation model (LightGBM, SHAP explainability) with segment-level MAE/MdAPE reporting, depreciation curves and 3-year residual-value estimates by model group; out-of-time validation.
 > - Shipped a 4-page Streamlit dashboard and a RedBook-style FastAPI valuation endpoint; documented UAT with external users and public model-monitoring/changelog trail.
 > - AI-assisted delivery workflow (Claude Code, Copilot) documented per-PR in the repo.
 
 ### Interview story (one arc, VicRoads lessons applied)
-Context ("I was rejected by carsales for lacking automotive-domain evidence — so I built the evidence, publicly") → role ("I own every layer; here's what that means operationally") → decisions ("why Postgres, why no scraping, why out-of-time splits") → outcome ("live for N months, N refresh cycles, N external users, here's what their feedback changed"). The rejection-to-build story, told straight, reads as exactly the resourceful, low-drama contractor they want. Honesty here is not the safe option — it's the *impressive* option.
+Context ("I was rejected by carsales for lacking automotive-domain evidence — so I built the evidence, publicly") → role ("I own every layer; here's what that means operationally") → decisions ("why Snowflake production plus Postgres compatibility, why no scraping, why out-of-time splits") → outcome ("live for N months, N refresh cycles, N external users, here's what their feedback changed"). The rejection-to-build story, told straight, reads as exactly the resourceful, low-drama contractor they want. Honesty here is not the safe option — it's the *impressive* option.
 
 ---
 
@@ -177,7 +177,7 @@ Context ("I was rejected by carsales for lacking automotive-domain evidence — 
 | Week | Focus | Output |
 |---|---|---|
 | 0 (1 day) | Truth Sheet + date fixes | Single source of career truth |
-| 1 | Data acquisition, Postgres, staging models | Raw + staged data, repo scaffolded, CI running |
+| 1 | Data acquisition, Snowflake/Postgres compatibility, staging models | Raw + staged data, repo scaffolded, CI running |
 | 2 | Star schema, dbt tests, GitHub Actions refresh | Working pipeline with quality gates |
 | 3 | Valuation model, depreciation, residual value | Evaluated models, honest metrics |
 | 4 | Dashboard + API, deploy | Live URLs |

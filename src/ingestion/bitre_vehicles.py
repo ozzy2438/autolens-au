@@ -70,7 +70,7 @@ def fetch_bitre_vehicle_makes(client: httpx.Client | None = None) -> pd.DataFram
 
 
 def load_to_raw_schema(df: pd.DataFrame, engine: Engine | None = None) -> int:
-    """Replace the published BITRE reference table in PostgreSQL."""
+    """Replace the published BITRE reference table in the configured database."""
     if df.empty:
         return 0
     target_engine = engine or get_engine()

@@ -1,7 +1,8 @@
 """Database setup script.
 
-Creates the PostgreSQL schemas and tables required for AutoLens AU.
-Schemas: raw, staging, core
+Creates the raw tables required for AutoLens AU. PostgreSQL local development
+also creates its schemas; Snowflake schemas and grants are account-bootstrap
+objects managed by ``infra/snowflake/bootstrap.sql``.
 """
 
 import logging
@@ -19,7 +20,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-SCHEMA_SQL = """
+POSTGRES_SCHEMA_SQL = """
 -- Create schemas
 CREATE SCHEMA IF NOT EXISTS raw;
 CREATE SCHEMA IF NOT EXISTS staging;
@@ -121,6 +122,99 @@ CREATE INDEX IF NOT EXISTS idx_rego_activity_make
     ON raw.raw_qld_registration_activity(make);
 """
 
+SNOWFLAKE_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS raw.raw_listings (
+    source_record_id TEXT,
+    brand VARCHAR(100),
+    year INTEGER,
+    model VARCHAR(200),
+    variant VARCHAR(200),
+    vehicle_type VARCHAR(50),
+    title TEXT,
+    condition VARCHAR(50),
+    transmission VARCHAR(50),
+    engine VARCHAR(100),
+    drive_type VARCHAR(50),
+    fuel_type VARCHAR(50),
+    fuel_consumption VARCHAR(50),
+    kilometres NUMERIC,
+    colour VARCHAR(200),
+    location VARCHAR(200),
+    cylinders INTEGER,
+    body_type VARCHAR(100),
+    doors INTEGER,
+    seats INTEGER,
+    price NUMERIC,
+    source VARCHAR(100),
+    listing_fingerprint VARCHAR(64),
+    snapshot_date DATE,
+    ingested_at TIMESTAMP_TZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_fuel_prices (
+    stationcode VARCHAR(50),
+    fueltype VARCHAR(50),
+    price NUMERIC,
+    lastupdated TIMESTAMP_NTZ,
+    name VARCHAR(200),
+    suburb VARCHAR(100),
+    state VARCHAR(10),
+    latitude NUMERIC,
+    longitude NUMERIC,
+    fetched_at TIMESTAMP_TZ DEFAULT CURRENT_TIMESTAMP(),
+    source VARCHAR(100)
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_qld_registration_activity (
+    activity_month DATE,
+    make VARCHAR(100),
+    model VARCHAR(200),
+    badge VARCHAR(200),
+    body_shape VARCHAR(100),
+    fuel_type VARCHAR(50),
+    transaction_type VARCHAR(50),
+    activity_count BIGINT,
+    source_resource_id VARCHAR(36),
+    source VARCHAR(100),
+    fetched_at TIMESTAMP_TZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_cpi (
+    period VARCHAR(20),
+    cpi_index NUMERIC,
+    period_date DATE,
+    source VARCHAR(50),
+    fetched_at TIMESTAMP_TZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_rba_cash_rate (
+    period_date DATE,
+    cash_rate_target_pct NUMERIC,
+    source VARCHAR(50),
+    fetched_at TIMESTAMP_TZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+CREATE TABLE IF NOT EXISTS raw.raw_bitre_vehicle_makes (
+    make VARCHAR(100),
+    reference_year INTEGER,
+    registered_vehicles BIGINT,
+    source VARCHAR(100),
+    fetched_at TIMESTAMP_TZ DEFAULT CURRENT_TIMESTAMP()
+);
+"""
+
+# Backwards-compatible constant used by the PostgreSQL integration suite.
+SCHEMA_SQL = POSTGRES_SCHEMA_SQL
+
+
+def schema_sql_for(dialect_name: str) -> str:
+    """Return setup DDL for a supported SQLAlchemy dialect."""
+    if dialect_name == "snowflake":
+        return SNOWFLAKE_SCHEMA_SQL
+    if dialect_name == "postgresql":
+        return POSTGRES_SCHEMA_SQL
+    raise ValueError(f"Unsupported database dialect: {dialect_name}")
+
 
 def _sql_statements(script: str) -> list[str]:
     """Split the setup script while retaining statements preceded by comments."""
@@ -146,12 +240,12 @@ def setup_database():
     engine = get_engine()
     with engine.connect() as conn:
         # Execute each statement separately
-        for statement in _sql_statements(SCHEMA_SQL):
+        for statement in _sql_statements(schema_sql_for(engine.dialect.name)):
             conn.execute(text(statement))
         conn.commit()
 
     logger.info("Database setup complete!")
-    logger.info("Schemas created: raw, staging, core")
+    logger.info("Database backend: %s", engine.dialect.name)
     logger.info("Raw tables created for listings, fuel, QLD activity, CPI, RBA rates and BITRE")
 
 

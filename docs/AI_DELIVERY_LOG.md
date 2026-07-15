@@ -9,7 +9,7 @@
 
 | Metric | Value |
 |--------|-------|
-| Total PRs with AI assistance | 3 (2 merged, 1 active delivery fix) |
+| Total PRs with AI assistance | 4 (3 merged, 1 active Snowflake platform PR) |
 | Initial delivery units | 8 direct-to-main commits |
 | Estimated time saved | Not independently measured |
 | Primary tools | Claude Code, GitHub Copilot, OpenAI Codex |
@@ -140,6 +140,23 @@ data refresh or model training run when this audit began.
   - The original fail-closed gate correctly prevented an invalid image but marked every pre-model
     main build red; the new gate keeps publishing blocked while treating the absent prerequisite as
     an intentional skip rather than a delivery failure
+- **Time saved:** Not independently measured; no numeric saving is claimed
+
+### Entry 009 — Snowflake Platform Provisioning
+- **Date:** 2026-07-15
+- **PR:** [#4](https://github.com/ozzy2438/autolens-au/pull/4)
+- **AI Tool:** OpenAI Codex
+- **What was generated:**
+  - Idempotent Snowflake warehouse/database/managed-schema bootstrap and least-privilege role tree
+  - Key-pair SQLAlchemy and dbt integrations for pipeline, CI, Streamlit and FastAPI runtimes
+  - Isolated Snowflake CI build plus production Monthly Refresh configuration
+  - Snowflake permission, secret, deployment and key-rotation runbook
+- **What was reviewed/corrected:**
+  - Every positive and negative permission boundary was executed with secondary roles disabled
+  - Separate CI and pipeline service keys replaced human `ACCOUNTADMIN` workflow access
+  - PostgreSQL remains as the secretless/fork-safe PR compatibility gate
+  - The real Snowflake build loaded 6 seeds and passed 47/47 models and tests before publication
+  - Repository history and tracked files were scanned to confirm no supplied credential was stored
 - **Time saved:** Not independently measured; no numeric saving is claimed
 
 ---

@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 def _load_training_frame() -> pd.DataFrame:
-    """Load canonical listing snapshots from PostgreSQL or the local Kaggle cache."""
+    """Load canonical listing snapshots from the database or the local Kaggle cache."""
     from config.database import get_engine
 
     try:

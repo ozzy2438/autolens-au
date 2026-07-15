@@ -89,7 +89,7 @@ def get_qld_activity() -> pd.DataFrame:
         """
         SELECT activity_month, initcap(trim(make)) AS make,
                lower(transaction_type) AS transaction_type,
-               sum(activity_count)::bigint AS activity_count
+               cast(sum(activity_count) AS bigint) AS activity_count
         FROM raw.raw_qld_registration_activity
         GROUP BY 1, 2, 3
         ORDER BY 1, 2, 3

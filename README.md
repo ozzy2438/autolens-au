@@ -40,7 +40,7 @@ deployed or populated.
 │                     INGESTION LAYER                              │
 │              Python scripts + GitHub Actions                     │
 ├─────────────────────────────────────────────────────────────────┤
-│                     PostgreSQL (Neon)                            │
+│                         Snowflake                                │
 │  ┌─────────┐    ┌───────────┐    ┌────────────────────────┐    │
 │  │   RAW   │ →  │  STAGING  │ →  │   CORE (Star Schema)   │    │
 │  │ schema  │    │   schema  │    │  fact_listing           │    │
@@ -137,14 +137,14 @@ Once calibrated intervals exist, higher-uncertainty cases will be reported with 
 
 | Layer | Technology | Rationale |
 |-------|-----------|------------|
-| Database | PostgreSQL (Neon) | Job ad specifies SQL Server or Postgres |
+| Database | Snowflake + local PostgreSQL compatibility | Managed production RBAC/compute; secretless PR tests |
 | Transformations | dbt Core | Industry standard; lineage + testing |
 | Orchestration | GitHub Actions | Monthly schedule + CI; doubles as "modern dev workflows" evidence |
 | ML | scikit-learn, LightGBM, SHAP | Production-grade, interpretable |
 | Dashboard | Streamlit | Rapid iteration; deployment planned |
 | API | FastAPI | Auto-generated OpenAPI docs; mirrors RedBook API shape |
 | Data Quality | dbt tests + pytest | One enforced validation path in CI |
-| Intended hosting | Neon (DB), Streamlit Cloud, Render (API) | Not deployed or verified yet |
+| Intended hosting | Snowflake, Streamlit Cloud, Render (API) | Database provisioned; services not publicly deployed |
 
 ---
 
@@ -262,7 +262,8 @@ See [docs/AI_DELIVERY_LOG.md](docs/AI_DELIVERY_LOG.md) for the complete log.
 
 ### Prerequisites
 - Python 3.11.x
-- PostgreSQL 15+ (or Neon account)
+- Snowflake account for production/runtime operations
+- PostgreSQL 15+ only for local Docker and secretless integration tests
 - dbt Core 1.11.x
 
 ### Quick Start
@@ -280,7 +281,10 @@ uv sync --frozen --extra dev --extra dbt
 
 # Configure
 cp .env.example .env
-# Edit .env with your database credentials
+# Edit .env with a least-privileged Snowflake service identity.
+# Never use ACCOUNTADMIN for the application or pipeline.
+mkdir -p ~/.dbt
+cp dbt_autolens/profiles.yml.example ~/.dbt/profiles.yml
 
 # Setup database
 python scripts/setup_database.py
@@ -304,6 +308,11 @@ uvicorn src.api.main:app --reload
 
 `uv.lock` is the dependency source of truth. `requirements.txt` is a generated, fully pinned
 Streamlit Cloud export; run `make requirements` after lock changes. CI rejects drift between them.
+
+Snowflake warehouse/database/schema/role configuration is defined in the credential-free,
+idempotent [`infra/snowflake/bootstrap.sql`](infra/snowflake/bootstrap.sql). See
+[`docs/SNOWFLAKE.md`](docs/SNOWFLAKE.md) for the permission matrix, key-pair authentication,
+GitHub secret names, deployment settings, validation, and rotation procedure.
 
 For Streamlit Cloud, configure `MODEL_RELEASE_REPOSITORY=ozzy2438/autolens-au`. The dashboard
 then retrieves the newest complete `model-*` prerelease, verifies the release asset digests, and
