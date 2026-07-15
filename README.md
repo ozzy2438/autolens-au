@@ -9,13 +9,15 @@
 
 AutoLens AU is an **independent public data product in active development** for Australian
 used-vehicle pricing intelligence, depreciation curves, and residual-value estimates. The
-repository currently contains the application and data-platform scaffold; the first verified
-data load, model training run, and public deployment have not yet been completed.
+repository contains tested ingestion, transformation, modelling, API, and dashboard implementations;
+the first credentialled production load, model training run, and public deployment have not yet
+been completed.
 
 This is **not** a consulting engagement or anonymous client project. Evidence is published only
 after it exists. The current state is:
 
-- CI, ingestion, dbt, modelling, API, and dashboard code are present and being remediated
+- CI runs the full Python suite and a seed-backed `dbt build`
+- Source parsers have been validated against current QLD, BITRE and RBA publications
 - No successful production refresh has been recorded
 - No trained production model or measured production metric is available
 - No public dashboard/API uptime or external UAT is claimed
@@ -32,8 +34,8 @@ deployed or populated.
 ┌─────────────────────────────────────────────────────────────────┐
 │                        DATA SOURCES                              │
 ├─────────────┬──────────────┬───────────────┬───────────────────┤
-│ Kaggle AU   │ AU Car Mkt   │ NSW FuelCheck │ QLD Rego Data     │
-│ Vehicles    │ Dataset      │ API client    │ (annual source)   │
+│ Kaggle AU   │ AU Car Mkt   │ NSW FuelCheck │ QLD Activity      │
+│ Vehicles    │ Dataset      │ API client    │ + BITRE + RBA     │
 ├─────────────┴──────────────┴───────────────┴───────────────────┤
 │                     INGESTION LAYER                              │
 │              Python scripts + GitHub Actions                     │
@@ -44,7 +46,7 @@ deployed or populated.
 │  │ schema  │    │   schema  │    │  fact_listing           │    │
 │  └─────────┘    └───────────┘    │  dim_vehicle            │    │
 │                                   │  dim_location           │    │
-│                                   │  dim_date               │    │
+│                                   │  dim_year               │    │
 │                                   └────────────────────────┘    │
 ├─────────────────────────────────────────────────────────────────┤
 │                    dbt TRANSFORMATIONS                           │
@@ -71,9 +73,9 @@ deployed or populated.
 | [Australian Vehicle Prices](https://www.kaggle.com/datasets/nelgiriyewithana/australian-vehicle-prices) (Kaggle) | Historical | One-time + updates | Core listings (~16,700 records) |
 | [Australia Car Market](https://www.kaggle.com/datasets/lainguyn123/australia-car-market-data) (Kaggle) | Historical | One-time | Secondary listings source |
 | [NSW Fuel API](https://api.nsw.gov.au/Product/Index/22) | Live API | Daily capable | Real-time fuel prices for market context |
-| [QLD Vehicle Registrations](https://www.data.qld.gov.au/dataset/vehicle-registrations) | Government open data | Annually | Fleet composition by make/model |
-| [BITRE Road Vehicles Australia](https://www.bitre.gov.au/) | Government report | Annual | National fleet age & composition |
-| ABS CPI / RBA rates | Government | Quarterly | Price deflation to real AUD |
+| [QLD registration activity](https://www.data.qld.gov.au/dataset/vehicle-registration-new-and-transfers-test) | Government open data | Partitioned updates | New-registration and transfer activity; not total fleet |
+| [BITRE Road Vehicles Australia](https://www.bitre.gov.au/resource/roads-vehicles/road-vehicles-australia-january-2025) | Government report | Annual | National registered vehicles by make |
+| [RBA statistical tables G1/F1](https://www.rba.gov.au/statistics/tables/) | Government | Quarterly/daily | CPI deflation and cash-rate context |
 
 ### Compliance: No Scraping Policy
 
@@ -88,16 +90,17 @@ This approach reflects how a data-services company like RedBook/carsales operate
 
 ---
 
-## Planned Product Capabilities
+## Implemented Product Capabilities
 
-These capabilities remain acceptance criteria until a verified training and refresh run publishes
-their artifacts and metrics.
+These code paths are tested, but product outputs remain unavailable until a verified training and
+refresh run publishes their artifacts and metrics.
 
 ### Valuation Engine
-- **Hedonic pricing model**: Regularised linear baseline → LightGBM ensemble
+- **Hedonic pricing model**: Regularised linear baseline → LightGBM
 - **Features**: make, model, badge/variant proxy, year/age, odometer, body, fuel, transmission, drivetrain, location, age×km interaction
-- **Explainability target**: SHAP global importance + per-valuation explanations
-- **Evaluation target**: MAE and MdAPE by segment, snapshot-based out-of-time validation, calibrated prediction intervals
+- **Explainability**: local TreeSHAP contributions generated from the trained LightGBM pipeline
+- **Evaluation**: MAE and MdAPE by segment; genuine snapshot OOT when available, explicitly
+  labelled random fallback otherwise; held-out split-conformal prediction intervals
 
 ### Depreciation & Residual Value
 - **Depreciation curves** by segment (make/model groups)
@@ -108,8 +111,8 @@ their artifacts and metrics.
 - Deduplication rules (same vehicle across sources)
 - Outlier handling (documented, not silent)
 - Missing-value policy per column
-- dbt tests in CI; one validation framework will be retained as the production quality gate
-- Visible Data Quality page in dashboard
+- dbt source/model/relationship tests run through `dbt build` in CI
+- Data Quality page reads persisted workflow evidence, source row counts, freshness and model metrics
 
 ---
 
@@ -117,14 +120,14 @@ their artifacts and metrics.
 
 Public listings data **lacks true condition and variant granularity**. We acknowledge this openly:
 
-1. **Condition**: Proxied via age × odometer interaction and listing type (dealer vs private)
-2. **Variant/badge**: Parsed from model strings where possible; wider prediction intervals where uncertain
+1. **Condition**: Source labels are coarse (new/used/demo); there is no physical condition score
+2. **Variant/badge**: Used where supplied by the source; otherwise explicitly `Unknown`
 3. **Geographic coverage**: Biased toward metro areas; rural listings underrepresented
 4. **Temporal coverage**: 2023 snapshot with government data providing trend context
 5. **Temporal validation**: manufacture year is not listing time. A genuine out-of-time test is
    impossible until multiple `snapshot_date` refreshes exist
-6. **Current readiness**: no production model is trained, prediction intervals are not calibrated,
-   and public service availability has not been established
+6. **Current readiness**: no production model is trained, so no measured interval calibration or
+   public service availability is claimed
 
 Once calibrated intervals exist, higher-uncertainty cases will be reported with wider ranges.
 
@@ -140,7 +143,7 @@ Once calibrated intervals exist, higher-uncertainty cases will be reported with 
 | ML | scikit-learn, LightGBM, SHAP | Production-grade, interpretable |
 | Dashboard | Streamlit | Rapid iteration; deployment planned |
 | API | FastAPI | Auto-generated OpenAPI docs; mirrors RedBook API shape |
-| Data Quality | Great Expectations, dbt tests | Validation as code |
+| Data Quality | dbt tests + pytest | One enforced validation path in CI |
 | Intended hosting | Neon (DB), Streamlit Cloud, Render (API) | Not deployed or verified yet |
 
 ---
@@ -158,8 +161,9 @@ autolens-au/
 │   │   ├── __init__.py
 │   │   ├── kaggle_loader.py          # Load AU vehicle datasets
 │   │   ├── nsw_fuelcheck.py          # NSW Fuel API client
-│   │   ├── qld_registrations.py      # QLD rego data loader
-│   │   └── abs_economic.py           # ABS CPI / RBA data
+│   │   ├── qld_registrations.py      # QLD activity loader
+│   │   ├── bitre_vehicles.py         # BITRE workbook loader
+│   │   └── abs_economic.py           # RBA CPI / cash-rate data
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── hedonic_model.py          # LightGBM valuation model
@@ -173,6 +177,7 @@ autolens-au/
 │   │   └── valuation_engine.py       # API business logic
 │   └── dashboard/
 │       ├── app.py                    # Streamlit main application
+│       ├── data_access.py            # Read-only DB/artifact repository
 │       ├── pages/
 │       │   ├── 1_instant_valuation.py
 │       │   ├── 2_depreciation_explorer.py
@@ -193,7 +198,7 @@ autolens-au/
 │   │       ├── fact_listing.sql
 │   │       ├── dim_vehicle.sql
 │   │       ├── dim_location.sql
-│   │       ├── dim_date.sql
+│   │       ├── dim_year.sql
 │   │       └── schema.yml
 │   ├── tests/
 │   │   └── custom/
@@ -207,10 +212,6 @@ autolens-au/
 │   │   └── test_data_quality.py
 │   └── integration/
 │       └── test_pipeline_e2e.py
-├── great_expectations/
-│   ├── great_expectations.yml
-│   └── expectations/
-│       └── listings_suite.json
 ├── docs/
 │   ├── AI_DELIVERY_LOG.md
 │   ├── DATA_DICTIONARY.md
@@ -260,9 +261,9 @@ See [docs/AI_DELIVERY_LOG.md](docs/AI_DELIVERY_LOG.md) for the complete log.
 ## Getting Started
 
 ### Prerequisites
-- Python 3.11+
+- Python 3.11.x
 - PostgreSQL 15+ (or Neon account)
-- dbt Core 1.7+
+- dbt Core 1.11.x
 
 ### Quick Start
 
@@ -274,7 +275,8 @@ cd autolens-au
 # Environment
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install uv==0.6.13
+uv sync --frozen --extra dev --extra dbt
 
 # Configure
 cp .env.example .env
@@ -288,8 +290,7 @@ python scripts/run_pipeline.py
 
 # Run dbt
 cd dbt_autolens
-dbt run
-dbt test
+dbt build
 
 # Train model
 python scripts/train_model.py

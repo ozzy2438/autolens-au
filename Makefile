@@ -21,12 +21,13 @@ test-integration: ## Run integration tests
 	pytest tests/integration/ -v
 
 lint: ## Run linters
-	ruff check src/ tests/
-	mypy src/
+	ruff format --check src/ config/ scripts/ tests/
+	ruff check src/ config/ scripts/ tests/
+	mypy src/ config/ scripts/
 
 format: ## Format code
-	black src/ tests/ scripts/
-	ruff check --fix src/ tests/
+	ruff format src/ config/ scripts/ tests/
+	ruff check --fix src/ config/ scripts/ tests/
 
 run-api: ## Start FastAPI server
 	uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
@@ -42,6 +43,9 @@ dbt-run: ## Run dbt models
 
 dbt-test: ## Run dbt tests
 	cd dbt_autolens && dbt test
+
+dbt-build: ## Build models and run all dbt tests
+	cd dbt_autolens && dbt build
 
 dbt-docs: ## Generate dbt documentation
 	cd dbt_autolens && dbt docs generate && dbt docs serve

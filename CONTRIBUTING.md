@@ -12,7 +12,7 @@ Thank you for your interest in contributing to AutoLens AU!
 
 ## Code Standards
 
-- **Python**: Follow PEP 8; enforced by `ruff` and `black`
+- **Python**: Follow PEP 8; formatting and linting are enforced by `ruff`
 - **SQL**: Use lowercase keywords, meaningful aliases
 - **Tests**: Every new feature needs tests
 - **Docs**: Update relevant documentation

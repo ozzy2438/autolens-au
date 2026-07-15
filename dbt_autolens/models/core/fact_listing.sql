@@ -1,5 +1,5 @@
 -- Core model: Fact table for vehicle listings (Kimball star schema)
--- Grain: one row per vehicle listing
+-- Grain: one row per natural listing fingerprint and ingestion snapshot
 
 with listings as (
     select * from {{ ref('stg_listings') }}
