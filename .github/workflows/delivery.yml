@@ -35,7 +35,7 @@ jobs:
           lookup_succeeded=false
           tag=""
           for attempt in 1 2 3; do
-            if tag="$(gh release list --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("model-"))][0].tagName // ""')"; then
+            if tag="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("model-"))][0].tagName // ""')"; then
               lookup_succeeded=true
               break
             fi
