@@ -5,11 +5,11 @@
 | Field | Value |
 |-------|-------|
 | **Model Name** | AutoLens AU Hedonic Pricing Model |
-| **Version** | 1.0.0 |
+| **Version** | Not trained |
 | **Type** | Regression (LightGBM Gradient Boosted Trees) |
 | **Target** | log(price_aud) — reverted to AUD at prediction time |
 | **Framework** | scikit-learn pipeline + LightGBM |
-| **Last Trained** | July 2026 |
+| **Last Trained** | Never |
 | **Author** | Osman Orka |
 
 ---
@@ -28,10 +28,10 @@
 | Property | Detail |
 |----------|--------|
 | Source | Kaggle Australian Vehicle Prices dataset |
-| Records | ~16,700 vehicle listings |
+| Records | 0 verified training rows; source dataset is expected to contain ~16,700 listings |
 | Geography | Australia-wide (all states) |
 | Time period | Primarily 2023 listings |
-| Validation | Out-of-time split (train ≤ 2021, test > 2021) |
+| Validation | Pending. A manufacture-year split is not an out-of-time listing split |
 
 ---
 
@@ -62,25 +62,19 @@
 
 ## Performance Metrics
 
-### Overall (Out-of-Time Test Set)
+### Overall
 
 | Metric | Value |
 |--------|-------|
-| MAE | ~$2,500 (target) |
-| MdAPE | ~8% (target) |
-| R² | ~0.85 (target) |
-| Coverage (80% PI) | ~80% (target) |
+| MAE | Not measured |
+| MdAPE | Not measured |
+| R² | Not measured |
+| Coverage (80% PI) | Not measured |
 
 ### By Price Segment
 
-| Segment | Expected MAE | Expected MdAPE |
-|---------|-------------|----------------|
-| Budget (<$15k) | ~$1,500 | ~12% |
-| Mid ($15k-$40k) | ~$2,200 | ~7% |
-| Premium ($40k-$80k) | ~$3,500 | ~6% |
-| Luxury (>$80k) | ~$6,000 | ~8% |
-
-*Note: These are target ranges. Actual metrics will be populated after first training run.*
+No segment metrics exist yet. This section will be generated from the first verified model artifact
+rather than populated with targets.
 
 ---
 
@@ -91,6 +85,10 @@
 3. **Geographic bias**: Metro areas overrepresented vs regional
 4. **Temporal**: Training data primarily from 2023; market shifts may not be captured
 5. **Options/features**: Individual vehicle options (sunroof, leather, etc.) not modelled
+6. **Temporal validation**: A single listing snapshot cannot support genuine out-of-time testing;
+   refreshes must accumulate first
+7. **Intervals/explanations**: Calibrated intervals and SHAP explanations are acceptance criteria,
+   not completed model capabilities
 
 ---
 
@@ -105,7 +103,7 @@
 
 ## Monitoring
 
-- Monthly MAE evaluation on fresh data
-- Drift threshold: 5% MAE degradation triggers retrain
+- Monthly MAE evaluation will begin after fresh labelled snapshots exist
+- A drift threshold will be activated only after a measured baseline exists
 - All monitoring logged in docs/MONITORING.md
 - Retrain decisions documented in CHANGELOG.md

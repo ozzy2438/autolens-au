@@ -9,10 +9,15 @@
 
 | Metric | Value |
 |--------|-------|
-| Total PRs with AI assistance | 10+ (ongoing) |
-| Estimated time saved | ~40% of development hours |
+| Total PRs with AI assistance | 0 before audit remediation |
+| Initial delivery units | 8 direct-to-main commits |
+| Estimated time saved | Not independently measured |
 | Primary tools | Claude Code, GitHub Copilot |
-| Quality gate | All AI output reviewed, tested, and validated |
+| Quality gate | Not established in the initial scaffold; remediation in progress |
+
+The entries below are retrospective disclosures for direct commits, not PR records. Their original
+time-saved figures are self-reported estimates. CI was failing and the product had not completed a
+data refresh or model training run when this audit began.
 
 ---
 
@@ -20,7 +25,7 @@
 
 ### Entry 001 — Project Scaffolding
 - **Date:** 2026-07-15
-- **PR/Commit:** Initial infrastructure commit
+- **Commit:** `b56a8a7`
 - **AI Tool:** Claude Code
 - **What was generated:**
   - Project directory structure
@@ -36,7 +41,7 @@
 
 ### Entry 002 — dbt Model Generation
 - **Date:** 2026-07-15
-- **PR/Commit:** dbt project setup
+- **Commit:** `9467bd5`
 - **AI Tool:** Claude Code
 - **What was generated:**
   - Staging model SQL (stg_listings, stg_fuel_prices, stg_qld_registrations)
@@ -50,7 +55,7 @@
 
 ### Entry 003 — FastAPI Endpoint Scaffolding
 - **Date:** 2026-07-15
-- **PR/Commit:** API implementation
+- **Commit:** `86a9cd2`
 - **AI Tool:** Claude Code + Copilot
 - **What was generated:**
   - Pydantic schemas (request/response models)
@@ -64,7 +69,7 @@
 
 ### Entry 004 — Test Suite Scaffolding
 - **Date:** 2026-07-15
-- **PR/Commit:** Unit test infrastructure
+- **Commit:** `9c59399`
 - **AI Tool:** GitHub Copilot
 - **What was generated:**
   - Test file structure and fixtures
@@ -72,13 +77,13 @@
   - pytest configuration
 - **What was reviewed/corrected:**
   - Added domain-specific test cases (Australian price ranges)
-  - Fixed edge cases in depreciation curve tests
+  - Added depreciation edge-case coverage; one retention baseline test still failed at audit time
   - Added integration test scenarios
 - **Time saved:** ~5 hours (test suite ~1h vs estimated ~1 day manual)
 
 ### Entry 005 — Streamlit Dashboard Pages
 - **Date:** 2026-07-15
-- **PR/Commit:** Dashboard implementation
+- **Commit:** `86a9cd2`
 - **AI Tool:** Claude Code
 - **What was generated:**
   - Multi-page Streamlit structure
@@ -86,7 +91,8 @@
   - Data Quality monitoring page layout
 - **What was reviewed/corrected:**
   - Customised colour scheme and layout for vehicle pricing context
-  - Added proper placeholder data representing Australian market
+  - Added placeholder market data for layout development; it was removed from user-facing output
+    during audit remediation because it could be mistaken for observed data
   - Refined user interaction flows
 - **Time saved:** ~3 hours
 
@@ -97,9 +103,9 @@
 1. **Task Scoping**: Define what needs to be built (human decision)
 2. **AI Generation**: Use Claude Code or Copilot for initial code generation
 3. **Review & Correct**: Every line reviewed; domain logic verified
-4. **Test**: AI output must pass existing test suite
+4. **Test**: AI output must pass local and GitHub Actions quality gates before merge
 5. **Document**: This log entry created
-6. **Commit**: Tagged PR description notes AI assistance
+6. **Commit**: PR description and this log identify the assistance and human corrections
 
 ## What AI Does Well Here
 - Boilerplate generation (project structure, configs)

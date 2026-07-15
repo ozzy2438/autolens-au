@@ -27,25 +27,25 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 ## [0.1.0] — 2026-07-15
 
 ### Initial Release
-- Project scaffolded and infrastructure deployed
+- Project scaffolded; deployment not verified
 - All source code committed
-- CI pipeline operational
+- CI workflow added but failing at the initial release
 - Ready for data loading and model training
 
 ### Data Sources Configured
 | Source | Status | Records |
 |--------|--------|---------|
-| Kaggle AU Vehicle Prices | Ready | ~16,700 |
-| NSW Fuel API | Client built | Live |
-| QLD Registrations | Loader built | ~450k |
-| ABS CPI | Fetcher built | ~26 |
+| Kaggle AU Vehicle Prices | Loader scaffolded; not loaded | 0 verified |
+| NSW Fuel API | Client scaffolded; not validated | 0 verified |
+| QLD Registrations | Loader scaffolded; not validated | 0 verified |
+| ABS CPI | Fetcher scaffolded; not validated | 0 verified |
 
 ### Pipeline Status
 - Database schema: ✅ Defined
-- Ingestion scripts: ✅ Complete
-- dbt models: ✅ Complete
+- Ingestion scripts: Scaffolded, validation pending
+- dbt models: Scaffolded, first `dbt build` pending
 - ML model: ✅ Training script ready
-- Dashboard: ✅ Scaffold deployed
+- Dashboard: Scaffold only; not deployed
 - API: ✅ Endpoint defined
 
 ---
