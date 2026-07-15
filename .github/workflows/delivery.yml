@@ -16,10 +16,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish:
+  preflight:
     if: >-
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      release_available: ${{ steps.model.outputs.release_available }}
+      release_tag: ${{ steps.model.outputs.release_tag }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Resolve calibrated model release
+        id: model
+        run: |
+          tag="$(gh release list --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("model-"))][0].tagName // ""')"
+          if [[ -z "$tag" ]]; then
+            echo "release_available=false" >> "$GITHUB_OUTPUT"
+            echo "No calibrated model release exists; container publishing was safely skipped." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "release_available=true" >> "$GITHUB_OUTPUT"
+            echo "release_tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "Publishing with calibrated model release \`$tag\`." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  publish:
+    needs: preflight
+    if: needs.preflight.outputs.release_available == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -31,14 +56,10 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Require and restore a calibrated model release
+      - name: Restore calibrated model release
         run: |
           mkdir -p models/artifacts
-          tag="$(gh release list --limit 50 --json tagName --jq '[.[] | select(.tagName | startswith("model-"))][0].tagName // ""')"
-          if [[ -z "$tag" ]]; then
-            echo "No calibrated model release exists; refusing to publish a permanently degraded API."
-            exit 1
-          fi
+          tag="${{ needs.preflight.outputs.release_tag }}"
           gh release download "$tag" --dir models/artifacts --pattern 'hedonic_model_latest.joblib'
           gh release download "$tag" --dir models/artifacts --pattern 'latest_metrics.json'
 
