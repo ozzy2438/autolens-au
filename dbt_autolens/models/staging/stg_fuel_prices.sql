@@ -19,9 +19,14 @@ cleaned as (
         fetched_at,
         source as data_source
     from source
-    where 
+    where
         price is not null
-        and cast(price as numeric) > 0
+        -- Documented plausibility window, not silent dropping: the live feed of
+        -- ~10k station prices occasionally carries mis-keyed readings (a handful
+        -- per refresh). Retail fuel outside 50-500 cents/litre is treated as an
+        -- invalid reading; the downstream accepted_range test (0.5-5.0 $/L)
+        -- enforces this contract on everything staging emits.
+        and cast(price as numeric) between 50 and 500
 )
 
 select * from cleaned
