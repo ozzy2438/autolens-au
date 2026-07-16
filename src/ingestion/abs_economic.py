@@ -8,7 +8,10 @@ import httpx
 import pandas as pd
 from sqlalchemy.engine import Engine
 
-from config.database import ensure_raw_schema, get_engine
+from config.database import ensure_raw_schema, get_engine, write_dataframe
+
+RAW_CPI_COLUMNS = ["period", "cpi_index", "period_date", "source", "fetched_at"]
+RAW_CASH_RATE_COLUMNS = ["period_date", "cash_rate_target_pct", "source", "fetched_at"]
 
 logger = logging.getLogger(__name__)
 
@@ -119,13 +122,13 @@ def load_economic_data_to_db(engine: Engine | None = None) -> dict[str, int | st
 
     cpi = fetch_abs_cpi()
     cash_rate = fetch_rba_cash_rate()
-    cpi.to_sql("raw_cpi", target_engine, schema="raw", if_exists="replace", index=False)
-    cash_rate.to_sql(
+    write_dataframe(cpi, "raw_cpi", mode="replace", columns=RAW_CPI_COLUMNS, engine=target_engine)
+    write_dataframe(
+        cash_rate,
         "raw_rba_cash_rate",
-        target_engine,
-        schema="raw",
-        if_exists="replace",
-        index=False,
+        mode="replace",
+        columns=RAW_CASH_RATE_COLUMNS,
+        engine=target_engine,
     )
     logger.info("Loaded %d CPI and %d cash-rate observations", len(cpi), len(cash_rate))
     return {

@@ -20,8 +20,22 @@ import httpx
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from config.database import ensure_raw_schema, get_engine
+from config.database import ensure_raw_schema, get_engine, write_dataframe
 from config.settings import nsw_fuel_config
+
+RAW_FUEL_COLUMNS = [
+    "stationcode",
+    "fueltype",
+    "price",
+    "lastupdated",
+    "name",
+    "suburb",
+    "state",
+    "latitude",
+    "longitude",
+    "fetched_at",
+    "source",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -156,18 +170,13 @@ def load_fuel_prices_to_db(df: pd.DataFrame) -> int:
     with engine.begin() as conn:
         ensure_raw_schema(conn)
 
-    df.to_sql(
-        "raw_fuel_prices",
-        engine,
-        schema="raw",
-        if_exists="append",  # Append to preserve time series
-        index=False,
-        method="multi",
-        chunksize=1000,
+    # Append to preserve the time series; reindex to the stable target columns
+    # because the live API payload carries extra/nested fields.
+    rows = write_dataframe(
+        df, "raw_fuel_prices", mode="append", columns=RAW_FUEL_COLUMNS, engine=engine
     )
-
-    logger.info(f"Loaded {len(df)} fuel price records to raw.raw_fuel_prices")
-    return len(df)
+    logger.info(f"Loaded {rows} fuel price records to raw.raw_fuel_prices")
+    return rows
 
 
 def run_fuel_ingestion() -> dict:

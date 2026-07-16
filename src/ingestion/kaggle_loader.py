@@ -10,7 +10,7 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from config.database import ensure_raw_schema, get_engine
+from config.database import ensure_raw_schema, get_engine, stringify_temporal_columns
 from config.settings import DATA_DIR
 
 logger = logging.getLogger(__name__)
@@ -307,18 +307,36 @@ def load_to_raw_schema(
 
     database = engine or get_engine()
     batch_table = "_raw_listings_batch"
+    batch = df.reindex(columns=RAW_COLUMNS)
 
     with database.begin() as connection:
         ensure_raw_schema(connection)
-        df.reindex(columns=RAW_COLUMNS).to_sql(
-            batch_table,
-            connection,
-            schema="raw",
-            if_exists="replace",
-            index=False,
-            method="multi",
-            chunksize=1000,
-        )
+        if connection.dialect.name == "snowflake":
+            # Snowflake cannot bind Python timestamps, so emit ISO strings and stage
+            # them in a batch table typed identically to the pre-created target, into
+            # which the strings implicitly cast.
+            connection.execute(
+                text("CREATE OR REPLACE TABLE raw._raw_listings_batch LIKE raw.raw_listings")
+            )
+            stringify_temporal_columns(batch).to_sql(
+                batch_table,
+                connection,
+                schema="raw",
+                if_exists="append",
+                index=False,
+                method="multi",
+                chunksize=1000,
+            )
+        else:
+            batch.to_sql(
+                batch_table,
+                connection,
+                schema="raw",
+                if_exists="replace",
+                index=False,
+                method="multi",
+                chunksize=1000,
+            )
         for statement in _raw_listing_upsert_statements(connection.dialect.name):
             connection.execute(text(statement))
 

@@ -14,7 +14,21 @@ import httpx
 import pandas as pd
 from sqlalchemy.engine import Engine
 
-from config.database import ensure_raw_schema, get_engine
+from config.database import ensure_raw_schema, get_engine, write_dataframe
+
+RAW_QLD_COLUMNS = [
+    "activity_month",
+    "make",
+    "model",
+    "badge",
+    "body_shape",
+    "fuel_type",
+    "transaction_type",
+    "activity_count",
+    "source_resource_id",
+    "source",
+    "fetched_at",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -146,17 +160,15 @@ def load_to_raw_schema(df: pd.DataFrame, engine: Engine | None = None) -> int:
     target_engine = engine or get_engine()
     with target_engine.begin() as connection:
         ensure_raw_schema(connection)
-    df.to_sql(
+    rows = write_dataframe(
+        df,
         "raw_qld_registration_activity",
-        target_engine,
-        schema="raw",
-        if_exists="replace",
-        index=False,
-        method="multi",
-        chunksize=1000,
+        mode="replace",
+        columns=RAW_QLD_COLUMNS,
+        engine=target_engine,
     )
-    logger.info("Loaded %d QLD registration activity rows", len(df))
-    return len(df)
+    logger.info("Loaded %d QLD registration activity rows", rows)
+    return rows
 
 
 def run_qld_ingestion(since: date | None = None) -> dict[str, int | str]:

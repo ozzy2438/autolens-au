@@ -179,3 +179,13 @@ jobs:
           uv run dbt deps
           uv run dbt seed --profiles-dir ../.github/dbt-snowflake --full-refresh
           uv run dbt build --profiles-dir ../.github/dbt-snowflake --exclude resource_type:seed
+
+      - name: Validate the pandas -> Snowflake ingestion write path
+        env:
+          DATABASE_BACKEND: snowflake
+          SNOWFLAKE_SCHEMA: RAW
+          SNOWFLAKE_ROLE: AUTOLENS_CI
+          SNOWFLAKE_DATABASE: AUTOLENS_AU_CI
+        run: |
+          uv run python scripts/setup_database.py
+          uv run python scripts/check_snowflake_ingest.py
