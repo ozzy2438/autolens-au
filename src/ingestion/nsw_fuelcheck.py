@@ -40,6 +40,23 @@ RAW_FUEL_COLUMNS = [
 logger = logging.getLogger(__name__)
 
 
+def merge_prices_with_stations(
+    prices_df: pd.DataFrame,
+    stations_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Join station details onto prices with string-normalised keys.
+
+    The live API returns numeric station codes in the prices payload but string
+    codes in the stations payload; pandas raises ValueError when merging int64
+    with str keys, so both sides are cast to string first.
+    """
+    if stations_df.empty or "stationcode" not in prices_df or "code" not in stations_df:
+        return prices_df
+    prices_df = prices_df.assign(stationcode=prices_df["stationcode"].astype(str))
+    stations_df = stations_df.assign(code=stations_df["code"].astype(str))
+    return prices_df.merge(stations_df, left_on="stationcode", right_on="code", how="left")
+
+
 class NSWFuelCheckClient:
     """Client for the NSW Government Fuel API.
 
@@ -122,16 +139,7 @@ class NSWFuelCheckClient:
             logger.warning("No prices returned from NSW Fuel API")
             return pd.DataFrame()
 
-        prices_df = pd.DataFrame(prices)
-        stations_df = pd.DataFrame(stations)
-
-        # Merge station details with prices
-        if not stations_df.empty:
-            merged_df = prices_df.merge(
-                stations_df, left_on="stationcode", right_on="code", how="left"
-            )
-        else:
-            merged_df = prices_df
+        merged_df = merge_prices_with_stations(pd.DataFrame(prices), pd.DataFrame(stations))
 
         # Add metadata
         merged_df["fetched_at"] = pd.Timestamp.now(tz="UTC")

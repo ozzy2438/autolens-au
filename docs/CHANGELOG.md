@@ -8,6 +8,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Streamlit-first deployment path: entry-script bootstrap (sys.path + secrets->environment
+  bridge), read-only `AUTOLENS_APP_SVC` service-user template, and a Streamlit Cloud
+  deployment guide (`docs/DEPLOYMENT_STREAMLIT.md`)
 - Initial project infrastructure
 - Data ingestion pipeline (Kaggle, NSW Fuel API, QLD activity, BITRE, RBA CPI/cash rate)
 - PostgreSQL compatibility schema for local development and secretless PR tests
@@ -33,6 +36,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - README decision record explaining the PostgreSQL-compatible / Snowflake-operated choice
 
 ### Fixed
+- NSW FuelCheck ingestion: the live API returns numeric station codes in prices but string
+  codes in stations; the merge keys are now string-normalised (this was the first refresh's
+  `fuel` failure)
+- BITRE ingestion: retries with backoff and a long read timeout for a small workbook that
+  bitre.gov.au serves slowly to CI egress IPs (the first refresh's `bitre` timeout)
 - `dim_location` now carries an explicit 'Unknown' member and `fact_listing` joins null
   source locations to it, so all fact rows have a `location_key`; 438 real listings with no
   location had been failing the not_null test and blocking the refresh

@@ -1,5 +1,15 @@
 """AutoLens AU Streamlit landing page."""
 
+# Make the repository root importable and bridge Streamlit secrets into the
+# environment before any `src.` / `config.` import reads configuration.
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from src.dashboard.runtime import bootstrap
+
+bootstrap()
+
 import streamlit as st
 
 from src.dashboard.data_access import (

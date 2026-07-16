@@ -176,6 +176,21 @@ data refresh or model training run when this audit began.
     so the Snowflake branch emits unquoted column lists
 - **Time saved:** Not independently measured; no numeric saving is claimed
 
+### Entry 011 — Snowflake Cost Guardrail and Decision Record
+- **Date:** 2026-07-16
+- **PR:** infra/snowflake-resource-monitor
+- **AI Tool:** Claude Code
+- **What was generated:**
+  - Idempotent `AUTOLENS_MONITOR` resource-monitor SQL bound to `AUTOLENS_WH` with
+    notify/suspend triggers and a documented default credit quota
+  - SNOWFLAKE.md operating section for applying and tuning the monitor
+  - README "Why Snowflake" decision record framing the PostgreSQL-compatible /
+    Snowflake-operated architecture honestly, including the non-zero operating cost
+- **What was reviewed/corrected:**
+  - Kept the credit ceiling out of the access-control bootstrap so budget and RBAC
+    stay separate and independently reviewable
+  - Corrected the residual "$0 operating cost" framing now that a warehouse is billed
+- **Time saved:** Not independently measured; no numeric saving is claimed
 ### Entry 012 — Snowflake Ingestion Write Path
 - **Date:** 2026-07-16
 - **PR:** fix/snowflake-pandas-write
@@ -194,21 +209,21 @@ data refresh or model training run when this audit began.
   - Preserved PostgreSQL behaviour and the pre-created Snowflake DDL types by truncating on replace
 - **Time saved:** Not independently measured; no numeric saving is claimed
 
-### Entry 011 — Snowflake Cost Guardrail and Decision Record
+### Entry 013 — Context-Source Fixes and Streamlit-First Deployment
 - **Date:** 2026-07-16
-- **PR:** infra/snowflake-resource-monitor
+- **PR:** fix/context-source-resilience
 - **AI Tool:** Claude Code
 - **What was generated:**
-  - Idempotent `AUTOLENS_MONITOR` resource-monitor SQL bound to `AUTOLENS_WH` with
-    notify/suspend triggers and a documented default credit quota
-  - SNOWFLAKE.md operating section for applying and tuning the monitor
-  - README "Why Snowflake" decision record framing the PostgreSQL-compatible /
-    Snowflake-operated architecture honestly, including the non-zero operating cost
+  - String-normalised NSW FuelCheck price/station merge (reproduced the live ValueError locally
+    before fixing; verified 10,591 real price rows after)
+  - Retry/backoff and granular timeouts for the BITRE workbook download (verified live: 93 makes)
+  - Dashboard entry-script bootstrap (sys.path + st.secrets->environment bridge), the
+    `AUTOLENS_APP_SVC` service-user SQL template, and the Streamlit Cloud deployment guide
 - **What was reviewed/corrected:**
-  - Kept the credit ceiling out of the access-control bootstrap so budget and RBAC
-    stay separate and independently reviewable
-  - Corrected the residual "$0 operating cost" framing now that a warehouse is billed
+  - Confirmed both first-refresh source failures root-caused from run logs, not guessed
+  - Key material generated locally only; never committed — the repo carries a placeholder template
 - **Time saved:** Not independently measured; no numeric saving is claimed
+
 
 ---
 
