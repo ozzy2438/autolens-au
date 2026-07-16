@@ -36,6 +36,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - README decision record explaining the PostgreSQL-compatible / Snowflake-operated choice
 
 ### Fixed
+- NSW fuel persistence: the API's day-first `lastupdated` string ('15/07/2026 22:50:19')
+  is parsed to a datetime before writing, so Snowflake's TIMESTAMP cast accepts it; the CI
+  Snowflake smoke test now writes the same day-first string
 - NSW FuelCheck ingestion: the live API returns numeric station codes in prices but string
   codes in stations; the merge keys are now string-normalised (this was the first refresh's
   `fuel` failure)

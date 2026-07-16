@@ -175,6 +175,14 @@ def load_fuel_prices_to_db(df: pd.DataFrame) -> int:
     """Load fuel price data into the configured raw schema."""
     engine = get_engine()
 
+    # The API reports lastupdated as a day-first string ('15/07/2026 22:50:19'),
+    # which Snowflake's TIMESTAMP cast rejects; parse it to a real datetime here
+    # so persistence renders it as an ISO string on every write path.
+    if "lastupdated" in df.columns:
+        df = df.assign(
+            lastupdated=pd.to_datetime(df["lastupdated"], dayfirst=True, errors="coerce")
+        )
+
     with engine.begin() as conn:
         ensure_raw_schema(conn)
 
