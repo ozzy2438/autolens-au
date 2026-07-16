@@ -176,6 +176,22 @@ data refresh or model training run when this audit began.
     so the Snowflake branch emits unquoted column lists
 - **Time saved:** Not independently measured; no numeric saving is claimed
 
+### Entry 012 — Snowflake Ingestion Write Path
+- **Date:** 2026-07-16
+- **PR:** fix/snowflake-pandas-write
+- **AI Tool:** Claude Code
+- **What was generated:**
+  - `write_dataframe` / `stringify_temporal_columns` helpers routing all five loaders through a
+    Snowflake-safe, type-preserving write (ISO strings + truncate-and-append into pre-typed tables)
+  - Required/best-effort source policy so a government-source outage degrades rather than blocks
+  - `scripts/check_snowflake_ingest.py` plus a CI step that runs the real pandas -> Snowflake write
+    against AUTOLENS_AU_CI, and unit tests for the write dispatch, temporal stringify and policy
+- **What was reviewed/corrected:**
+  - Diagnosed the first credentialled refresh failing at listing load with
+    `Binding data in type (timestamp) is not supported`; confirmed dbt seeds never exercised this path
+  - Preserved PostgreSQL behaviour and the pre-created Snowflake DDL types by truncating on replace
+- **Time saved:** Not independently measured; no numeric saving is claimed
+
 ### Entry 011 — Snowflake Cost Guardrail and Decision Record
 - **Date:** 2026-07-16
 - **PR:** infra/snowflake-resource-monitor

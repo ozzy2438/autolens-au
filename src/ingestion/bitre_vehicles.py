@@ -8,7 +8,15 @@ import httpx
 import pandas as pd
 from sqlalchemy.engine import Engine
 
-from config.database import ensure_raw_schema, get_engine
+from config.database import ensure_raw_schema, get_engine, write_dataframe
+
+RAW_BITRE_COLUMNS = [
+    "make",
+    "reference_year",
+    "registered_vehicles",
+    "source",
+    "fetched_at",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -75,16 +83,15 @@ def load_to_raw_schema(df: pd.DataFrame, engine: Engine | None = None) -> int:
     target_engine = engine or get_engine()
     with target_engine.begin() as connection:
         ensure_raw_schema(connection)
-    df.to_sql(
+    rows = write_dataframe(
+        df,
         "raw_bitre_vehicle_makes",
-        target_engine,
-        schema="raw",
-        if_exists="replace",
-        index=False,
-        method="multi",
+        mode="replace",
+        columns=RAW_BITRE_COLUMNS,
+        engine=target_engine,
     )
-    logger.info("Loaded %d BITRE make/year rows", len(df))
-    return len(df)
+    logger.info("Loaded %d BITRE make/year rows", rows)
+    return rows
 
 
 def run_bitre_ingestion() -> dict[str, int | str]:

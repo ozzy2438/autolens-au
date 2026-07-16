@@ -1,11 +1,13 @@
 """Lazy database connection and session management."""
 
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
+from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 from cryptography.hazmat.primitives import serialization
 from snowflake.sqlalchemy import URL
 from sqlalchemy import create_engine, text
@@ -104,6 +106,79 @@ def ensure_raw_schema(connection: Connection) -> None:
     if connection.dialect.name == "snowflake":
         return
     connection.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
+
+
+def stringify_temporal_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Render date/datetime columns as ISO strings for Snowflake-safe binding.
+
+    The Snowflake connector cannot bind Python ``datetime``/``date`` values as
+    pyformat parameters (``Binding data in type (timestamp) is not supported``).
+    Emitting ISO-8601 strings lets Snowflake implicitly cast them into the DATE and
+    TIMESTAMP columns that ``scripts/setup_database.py`` pre-creates, so the target
+    types are preserved.
+    """
+    result = df.copy()
+    for column in result.columns:
+        series = result[column]
+        if pd.api.types.is_datetime64_any_dtype(series):
+            result[column] = series.astype("string")
+        elif series.dtype == object:
+            non_null = series.dropna()
+            if len(non_null) and isinstance(non_null.iloc[0], (date, datetime, pd.Timestamp)):
+                result[column] = series.astype("string")
+    return result
+
+
+def write_dataframe(
+    df: pd.DataFrame,
+    table_name: str,
+    *,
+    schema: str = "raw",
+    mode: str = "append",
+    columns: Sequence[str] | None = None,
+    engine: Engine | None = None,
+    chunksize: int = 1000,
+) -> int:
+    """Persist a DataFrame to a raw table, portably across PostgreSQL and Snowflake.
+
+    ``columns`` reindexes the frame to a known target column set (dropping source
+    drift and filling absent columns with NULL). ``mode='replace'`` truncates the
+    pre-created Snowflake table rather than dropping it, so its DDL types survive;
+    on PostgreSQL it keeps the standard ``to_sql`` replace behaviour.
+    """
+    if mode not in {"append", "replace"}:
+        raise ValueError(f"Unsupported write mode: {mode}")
+    if df.empty:
+        return 0
+
+    frame = df.reindex(columns=list(columns)) if columns is not None else df
+    database = engine or get_engine()
+
+    if database.dialect.name == "snowflake":
+        frame = stringify_temporal_columns(frame)
+        with database.begin() as connection:
+            if mode == "replace":
+                connection.execute(text(f"TRUNCATE TABLE IF EXISTS {schema}.{table_name}"))
+            frame.to_sql(
+                table_name,
+                connection,
+                schema=schema,
+                if_exists="append",
+                index=False,
+                method="multi",
+                chunksize=chunksize,
+            )
+    else:
+        frame.to_sql(
+            table_name,
+            database,
+            schema=schema,
+            if_exists=mode,
+            index=False,
+            method="multi",
+            chunksize=chunksize,
+        )
+    return len(frame)
 
 
 @contextmanager

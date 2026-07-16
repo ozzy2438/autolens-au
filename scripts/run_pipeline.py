@@ -20,6 +20,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 SOURCE_NAMES = ("kaggle", "fuel", "qld", "cpi", "bitre")
+# Listings are required for valuation modelling. The government context sources feed
+# the market monitor and are best-effort: a single-source outage or upstream schema
+# change is recorded as a failure but must not block a model refresh.
+REQUIRED_SOURCES = ("kaggle",)
 
 
 def run_source(
@@ -85,9 +89,16 @@ def run_full_pipeline(
         if source_result.get("status") != "success":
             failed_sources.append(source)
 
+    failed_required = [s for s in failed_sources if s in REQUIRED_SOURCES]
     results["completed_at"] = datetime.now(UTC).isoformat()
     results["failed_sources"] = failed_sources
-    results["status"] = "failed" if failed_sources else "success"
+    results["failed_required_sources"] = failed_required
+    if failed_required:
+        results["status"] = "failed"
+    elif failed_sources:
+        results["status"] = "degraded"
+    else:
+        results["status"] = "success"
     return results
 
 
@@ -144,6 +155,7 @@ def main() -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2, default=str) + "\n", encoding="utf-8")
     logger.info("Pipeline result: %s", result)
+    # Only a required-source failure is fatal; degraded runs still produce a model.
     return 1 if result["status"] == "failed" else 0
 
 

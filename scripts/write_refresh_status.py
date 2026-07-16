@@ -21,8 +21,9 @@ def build_refresh_status(
     model_metrics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Validate upstream evidence and produce the single operational status object."""
-    if pipeline.get("status") != "success":
-        raise ValueError("Cannot record a successful refresh from a failed pipeline result")
+    pipeline_status = pipeline.get("status")
+    if pipeline_status not in {"success", "degraded"}:
+        raise ValueError("Cannot record a refresh from a failed pipeline result")
 
     results = dbt_results.get("results", [])
     failed = [result for result in results if result.get("status") in {"error", "fail"}]
@@ -34,11 +35,12 @@ def build_refresh_status(
         raise ValueError("dbt evidence must contain at least one model and one test result")
 
     return {
-        "status": "success",
+        "status": pipeline_status,
         "completed_at": datetime.now(UTC).isoformat(),
         "github_run_id": os.getenv("GITHUB_RUN_ID"),
         "commit_sha": os.getenv("GITHUB_SHA"),
         "sources": pipeline.get("sources", {}),
+        "failed_sources": pipeline.get("failed_sources", []),
         "dbt": {
             "status": "success",
             "tests_passed": sum(result.get("status") == "pass" for result in tests),

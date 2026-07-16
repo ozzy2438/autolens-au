@@ -33,6 +33,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - README decision record explaining the PostgreSQL-compatible / Snowflake-operated choice
 
 ### Fixed
+- Snowflake ingestion writes: replaced `pandas.to_sql(method="multi")`, which cannot bind
+  Python timestamps on Snowflake, with a dialect-aware `write_dataframe` that emits ISO
+  strings and truncates rather than drops the pre-typed target tables; the first real
+  refresh had failed at listing load with `Binding data in type (timestamp) is not supported`
+- Monthly refresh now treats listings as required and government context sources as
+  best-effort, so a single upstream outage records a degraded run instead of blocking the model
+- CI now exercises the pandas -> Snowflake write path against the isolated CI database, the
+  coverage gap that let the binding regression reach a live refresh
 - Snowflake-incompatible listing upsert SQL (PostgreSQL `LIKE ... INCLUDING DEFAULTS`, target
   alias in `DELETE`, quoted-lowercase column references, and unsupported `CREATE UNIQUE INDEX`)
   now uses dialect-appropriate statements, so the first credentialled refresh can load listings
