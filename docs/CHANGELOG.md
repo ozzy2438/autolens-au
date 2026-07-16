@@ -33,6 +33,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - README decision record explaining the PostgreSQL-compatible / Snowflake-operated choice
 
 ### Fixed
+- `dim_location` now carries an explicit 'Unknown' member and `fact_listing` joins null
+  source locations to it, so all fact rows have a `location_key`; 438 real listings with no
+  location had been failing the not_null test and blocking the refresh
 - Reclassified the price-outlier dbt test as a WARN-severity monitor with a 5% threshold:
   a real used-car market's luxury tail exceeds 3x IQR for >1% of listings, which was
   erroring the refresh; it now surfaces on the data-quality log without blocking the model

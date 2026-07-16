@@ -1,11 +1,11 @@
 -- Core model: Location dimension (Kimball star schema)
--- One row per unique location
+-- One row per unique location. Null source locations map to an explicit
+-- 'Unknown' member so every fact row carries a location_key.
 
 with distinct_locations as (
     select distinct
-        location_raw
+        coalesce(location_raw, 'Unknown') as location_raw
     from {{ ref('stg_listings') }}
-    where location_raw is not null
 )
 
 select
@@ -40,6 +40,7 @@ select
     
     -- Metro vs regional classification
     case
+        when location_raw = 'Unknown' then 'Unknown'
         when {{ regex_matches(
             'location_raw',
             'Sydney|Melbourne|Brisbane|Perth|Adelaide|Hobart|Canberra|Darwin'
