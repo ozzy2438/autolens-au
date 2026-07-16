@@ -33,6 +33,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - README decision record explaining the PostgreSQL-compatible / Snowflake-operated choice
 
 ### Fixed
+- Removed `not_null` dbt source tests on raw listings `brand`/`price`/`year`: the raw layer
+  accepts source nulls (e.g. price-on-application), and `stg_listings` already enforces
+  not_null after filtering; the tests wrongly failed the refresh on 50 legitimately null prices
 - Raw layer now widens free-text columns to an unbounded type: a dealer name in the source
   listings `Car/Suv` field (>50 chars) made Snowflake reject the whole load with a
   truncation error. Applied as an idempotent migration so pre-existing narrow tables converge

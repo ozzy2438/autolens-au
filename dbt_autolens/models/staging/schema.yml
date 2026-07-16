@@ -8,24 +8,21 @@ sources:
       - name: raw_listings
         description: "Combined Australian vehicle listings from Kaggle datasets"
         columns:
+          # brand/price/year are intentionally untested here: the raw layer accepts
+          # source data verbatim (nulls, e.g. price-on-application listings, are
+          # expected). not_null is enforced in stg_listings after filtering.
           - name: brand
-            description: "Vehicle manufacturer name"
-            data_tests:
-              - not_null
+            description: "Vehicle manufacturer name (may be null in raw)"
           - name: price
-            description: "Listed price in AUD"
-            data_tests:
-              - not_null
+            description: "Listed price in AUD (may be null in raw, e.g. POA)"
           - name: year
-            description: "Year of manufacture"
-            data_tests:
-              - not_null
+            description: "Year of manufacture (may be null in raw)"
           - name: listing_fingerprint
-            description: "Stable natural-listing fingerprint"
+            description: "Stable natural-listing fingerprint (system-generated)"
             data_tests:
               - not_null
           - name: snapshot_date
-            description: "Date on which the source snapshot was ingested"
+            description: "Date on which the source snapshot was ingested (system-generated)"
             data_tests:
               - not_null
 
