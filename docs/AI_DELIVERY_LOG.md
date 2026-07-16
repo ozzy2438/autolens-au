@@ -176,6 +176,22 @@ data refresh or model training run when this audit began.
     so the Snowflake branch emits unquoted column lists
 - **Time saved:** Not independently measured; no numeric saving is claimed
 
+### Entry 011 — Snowflake Cost Guardrail and Decision Record
+- **Date:** 2026-07-16
+- **PR:** infra/snowflake-resource-monitor
+- **AI Tool:** Claude Code
+- **What was generated:**
+  - Idempotent `AUTOLENS_MONITOR` resource-monitor SQL bound to `AUTOLENS_WH` with
+    notify/suspend triggers and a documented default credit quota
+  - SNOWFLAKE.md operating section for applying and tuning the monitor
+  - README "Why Snowflake" decision record framing the PostgreSQL-compatible /
+    Snowflake-operated architecture honestly, including the non-zero operating cost
+- **What was reviewed/corrected:**
+  - Kept the credit ceiling out of the access-control bootstrap so budget and RBAC
+    stay separate and independently reviewable
+  - Corrected the residual "$0 operating cost" framing now that a warehouse is billed
+- **Time saved:** Not independently measured; no numeric saving is claimed
+
 ---
 
 ## How This Workflow Operates

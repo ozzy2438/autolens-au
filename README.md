@@ -146,6 +146,35 @@ Once calibrated intervals exist, higher-uncertainty cases will be reported with 
 | Data Quality | dbt tests + pytest | One enforced validation path in CI |
 | Intended hosting | Snowflake, Streamlit Cloud, Render (API) | Database provisioned; services not publicly deployed |
 
+### Why Snowflake (decision record)
+
+The target job advert names SQL Server or PostgreSQL, and the code keeps a fully
+working PostgreSQL path: local Docker development and every pull-request CI gate run
+on PostgreSQL with no secrets, which also keeps forked-PR builds safe. Production and
+the credentialled CI integration run on Snowflake instead, and that is a deliberate
+choice rather than a detour from the advert:
+
+- **Access control as a first-class artefact.** Ingestion, transformation, read-only
+  application, and CI each get a distinct least-privilege role over managed-access
+  schemas, and the human account no longer runs day-to-day work as `ACCOUNTADMIN`.
+  This is the kind of governance a data-services company operates, and it is visible
+  and reviewable in [`infra/snowflake/bootstrap.sql`](infra/snowflake/bootstrap.sql).
+- **Key-pair service identities, no passwords in automation.** Every non-human caller
+  (CI, the scheduled pipeline, and the future dashboard/API) authenticates with an RSA
+  key pair; no password reaches GitHub Actions, Streamlit, or Render.
+- **Cost-controlled, idempotent, reproducible.** A single X-Small warehouse with
+  60-second auto-suspend backs ingestion, dbt, CI, and application reads; the account
+  bootstrap is re-runnable and a credit
+  [resource monitor](infra/snowflake/resource_monitor.sql) caps spend.
+- **Same modelling code, portable SQL.** The dbt project and ingestion loaders emit
+  dialect-appropriate SQL, so the warehouse choice does not lock the transformation or
+  Python layers to one vendor.
+
+The honest framing for interviews is *"PostgreSQL-compatible by design, operated on
+Snowflake with production-grade RBAC, key-pair auth, and isolated CI"* — a stronger
+story than a single local database, told without overclaiming. Operating cost is no
+longer strictly `$0`; it is a small, deliberate, capped monthly credit spend.
+
 ---
 
 ## Project Structure

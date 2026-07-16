@@ -55,7 +55,40 @@ unset SNOWFLAKE_PASSWORD
 The script assigns project roles to `CURRENT_USER()`, changes that user's default
 role to `AUTOLENS_ADMIN`, and leaves `ACCOUNTADMIN` available only for account-level
 administration. It does not create a resource monitor because a credit quota is a
-budget decision. Set one separately after choosing a monthly credit limit.
+budget decision, kept separate from access control (see below).
+
+## Credit resource monitor
+
+[`infra/snowflake/resource_monitor.sql`](../infra/snowflake/resource_monitor.sql)
+creates `AUTOLENS_MONITOR`, a monthly credit cap bound to `AUTOLENS_WH`. It is kept
+out of the account bootstrap on purpose: the bootstrap defines *who can do what*, and
+the monitor defines *how much it may cost*, which is a budget decision to make
+explicitly. Run it as `ACCOUNTADMIN` after choosing a ceiling:
+
+```bash
+export SNOWFLAKE_PASSWORD='set-this-in-your-shell-or-secret-manager'
+snow sql --temporary-connection \
+  --account your_org-your_account \
+  --user your_admin_user \
+  --role ACCOUNTADMIN \
+  --filename infra/snowflake/resource_monitor.sql
+unset SNOWFLAKE_PASSWORD
+```
+
+The default `CREDIT_QUOTA` is 5 credits/month — a conservative cap for one X-Small
+warehouse serving monthly refreshes, CI, and light dashboard reads. Triggers `SUSPEND`
+at 100% (running statements finish, new ones are blocked) and `SUSPEND_IMMEDIATE` at
+110%; suspension is enforced regardless of notification setup. The 75% and 90% `NOTIFY`
+triggers only send email once you uncomment `NOTIFY_USERS` and list users with a
+verified email and notifications enabled.
+
+The file is idempotent by using `CREATE ... IF NOT EXISTS`: a rerun is a no-op and
+never resets the current period's accumulated usage. Because a rerun therefore ignores
+edits to the `CREATE`, change the ceiling later with an explicit
+`ALTER RESOURCE MONITOR AUTOLENS_MONITOR SET CREDIT_QUOTA = <new_value>` (shown at the
+bottom of the file), which does not reset usage. Snowflake does not allow `OR REPLACE`
+together with `IF NOT EXISTS`, and `OR REPLACE` would recreate the monitor, so it is
+avoided here.
 
 ## Non-human authentication
 
