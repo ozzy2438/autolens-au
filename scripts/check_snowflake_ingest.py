@@ -44,6 +44,12 @@ def _listings_frame(snapshot: str) -> pd.DataFrame:
             "kilometres": [45000, 68000],
             "price": [35000, 31500],
             "body_type": ["Sedan", "SUV"],
+            # A value well over 50 chars guards against the raw-column truncation
+            # that a bounded VARCHAR would reject on Snowflake.
+            "vehicle_type": [
+                "Gold Coast Chrysler Jeep Dodge NEW Frizelle Sunshine Automotive",
+                "SUV",
+            ],
         }
     )
     return add_lineage(canonical, "ci_smoke", snapshot)

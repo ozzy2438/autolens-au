@@ -206,6 +206,58 @@ CREATE TABLE IF NOT EXISTS raw.raw_bitre_vehicle_makes (
 # Backwards-compatible constant used by the PostgreSQL integration suite.
 SCHEMA_SQL = POSTGRES_SCHEMA_SQL
 
+# Free-text columns are widened to an unbounded string type after creation. The raw
+# layer must accept messy source values verbatim (e.g. a dealer name landing in the
+# listings "Car/Suv" field) and defer cleaning to staging; a bounded VARCHAR makes
+# Snowflake reject the whole load with a truncation error. Applying this as an
+# idempotent migration converges tables that were first created with narrow widths.
+TEXT_COLUMNS: dict[str, tuple[str, ...]] = {
+    "raw_listings": (
+        "brand",
+        "model",
+        "variant",
+        "vehicle_type",
+        "condition",
+        "transmission",
+        "engine",
+        "drive_type",
+        "fuel_type",
+        "fuel_consumption",
+        "colour",
+        "location",
+        "body_type",
+        "source",
+    ),
+    "raw_fuel_prices": ("stationcode", "fueltype", "name", "suburb", "state", "source"),
+    "raw_qld_registration_activity": (
+        "make",
+        "model",
+        "badge",
+        "body_shape",
+        "fuel_type",
+        "transaction_type",
+        "source",
+    ),
+    "raw_cpi": ("period", "source"),
+    "raw_rba_cash_rate": ("source",),
+    "raw_bitre_vehicle_makes": ("make", "source"),
+}
+
+
+def widen_text_columns_sql(dialect_name: str) -> list[str]:
+    """Return idempotent statements widening raw free-text columns to TEXT."""
+    if dialect_name == "snowflake":
+        clause = "SET DATA TYPE VARCHAR"  # unbounded (VARCHAR(16777216))
+    elif dialect_name == "postgresql":
+        clause = "TYPE TEXT"
+    else:
+        raise ValueError(f"Unsupported database dialect: {dialect_name}")
+    return [
+        f"ALTER TABLE IF EXISTS raw.{table} ALTER COLUMN {column} {clause}"
+        for table, columns in TEXT_COLUMNS.items()
+        for column in columns
+    ]
+
 
 def schema_sql_for(dialect_name: str) -> str:
     """Return setup DDL for a supported SQLAlchemy dialect."""
@@ -241,6 +293,10 @@ def setup_database():
     with engine.connect() as conn:
         # Execute each statement separately
         for statement in _sql_statements(schema_sql_for(engine.dialect.name)):
+            conn.execute(text(statement))
+        # Converge free-text columns to an unbounded type (also fixes tables first
+        # created with narrow widths).
+        for statement in widen_text_columns_sql(engine.dialect.name):
             conn.execute(text(statement))
         conn.commit()
 

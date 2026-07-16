@@ -15,7 +15,12 @@ from config.database import (
     write_dataframe,
 )
 from config.settings import DatabaseConfig, db_config
-from scripts.setup_database import POSTGRES_SCHEMA_SQL, SNOWFLAKE_SCHEMA_SQL, schema_sql_for
+from scripts.setup_database import (
+    POSTGRES_SCHEMA_SQL,
+    SNOWFLAKE_SCHEMA_SQL,
+    schema_sql_for,
+    widen_text_columns_sql,
+)
 
 
 def test_database_backend_defaults_to_postgresql(monkeypatch) -> None:
@@ -129,3 +134,19 @@ def test_write_dataframe_rejects_unknown_mode():
 
 def test_write_dataframe_empty_frame_is_a_noop():
     assert write_dataframe(pd.DataFrame({"a": []}), "raw_x", mode="append") == 0
+
+
+def test_widen_text_columns_sql_targets_the_truncating_column():
+    snowflake = widen_text_columns_sql("snowflake")
+    postgres = widen_text_columns_sql("postgresql")
+
+    assert (
+        "ALTER TABLE IF EXISTS raw.raw_listings ALTER COLUMN vehicle_type SET DATA TYPE VARCHAR"
+        in snowflake
+    )
+    assert "ALTER TABLE IF EXISTS raw.raw_listings ALTER COLUMN vehicle_type TYPE TEXT" in postgres
+
+
+def test_widen_text_columns_sql_rejects_unknown_dialect():
+    with pytest.raises(ValueError, match="Unsupported database dialect"):
+        widen_text_columns_sql("sqlite")
