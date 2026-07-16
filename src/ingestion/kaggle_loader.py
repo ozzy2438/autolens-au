@@ -275,21 +275,23 @@ def _raw_listing_upsert_statements(dialect: str) -> list[str]:
             f"SELECT {columns} FROM raw._raw_listings_batch",
             "DROP TABLE raw._raw_listings_batch",
         ]
-    quoted_columns = ", ".join(f'"{column}"' for column in RAW_COLUMNS)
-    return [
-        "CREATE TABLE IF NOT EXISTS raw.raw_listings "
-        "(LIKE raw._raw_listings_batch INCLUDING DEFAULTS)",
-        *alter_statements,
-        "DELETE FROM raw.raw_listings AS existing "
-        "USING raw._raw_listings_batch AS batch "
-        "WHERE existing.listing_fingerprint = batch.listing_fingerprint "
-        "AND existing.snapshot_date = batch.snapshot_date",
-        f"INSERT INTO raw.raw_listings ({quoted_columns}) "  # noqa: S608
-        f"SELECT {quoted_columns} FROM raw._raw_listings_batch",
-        "DROP TABLE raw._raw_listings_batch",
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_listings_snapshot "
-        "ON raw.raw_listings (listing_fingerprint, snapshot_date)",
-    ]
+    if dialect == "postgresql":
+        quoted_columns = ", ".join(f'"{column}"' for column in RAW_COLUMNS)
+        return [
+            "CREATE TABLE IF NOT EXISTS raw.raw_listings "
+            "(LIKE raw._raw_listings_batch INCLUDING DEFAULTS)",
+            *alter_statements,
+            "DELETE FROM raw.raw_listings AS existing "
+            "USING raw._raw_listings_batch AS batch "
+            "WHERE existing.listing_fingerprint = batch.listing_fingerprint "
+            "AND existing.snapshot_date = batch.snapshot_date",
+            f"INSERT INTO raw.raw_listings ({quoted_columns}) "  # noqa: S608
+            f"SELECT {quoted_columns} FROM raw._raw_listings_batch",
+            "DROP TABLE raw._raw_listings_batch",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_listings_snapshot "
+            "ON raw.raw_listings (listing_fingerprint, snapshot_date)",
+        ]
+    raise ValueError(f"Unsupported database dialect: {dialect}")
 
 
 def load_to_raw_schema(

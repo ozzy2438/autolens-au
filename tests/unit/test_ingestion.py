@@ -141,6 +141,11 @@ def test_postgresql_upsert_statements_keep_snapshot_unique_index():
     )
 
 
+def test_upsert_statements_reject_unknown_dialects():
+    with pytest.raises(ValueError, match="Unsupported database dialect"):
+        _raw_listing_upsert_statements("sqlite")
+
+
 def test_upsert_statements_replace_matching_snapshot_rows_for_both_dialects():
     for dialect in ("postgresql", "snowflake"):
         statements = _raw_listing_upsert_statements(dialect)
