@@ -4,3 +4,4 @@ CI002,Toyota,2020,RAV4,Edge,Used,Toyota RAV4 Edge,Used,Automatic,2.5L,AWD,Petrol
 CI003,Mazda,2019,CX-5,Maxx,Used,Mazda CX-5 Maxx,Used,Automatic,2.5L,AWD,Petrol,7.4 L/100km,68000,Red,Brisbane QLD,4,SUV,5,5,31000,ci_seed,fp-ci-003,2026-07-15,2026-07-15T00:00:00Z
 CI004,Ford,2018,Ranger,XLT,Used,Ford Ranger XLT,Used,Automatic,3.2L,4WD,Diesel,9.0 L/100km,92000,Black,Perth WA,5,Ute,4,5,42000,ci_seed,fp-ci-004,2026-07-15,2026-07-15T00:00:00Z
 CI005,Tesla,2022,Model 3,RWD,Used,Tesla Model 3 RWD,Used,Automatic,Electric,RWD,Electric,0 L/100km,24000,White,Adelaide SA,0,Sedan,4,5,52000,ci_seed,fp-ci-005,2026-07-15,2026-07-15T00:00:00Z
+CI006,Hyundai,2021,i30,Active,Used,Hyundai i30 Active,Used,Automatic,2.0L,FWD,Petrol,7.4 L/100km,38000,Grey,,4,Hatchback,5,5,24000,ci_seed,fp-ci-006,2026-07-15,2026-07-15T00:00:00Z

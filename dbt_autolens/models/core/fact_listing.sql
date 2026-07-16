@@ -41,8 +41,9 @@ final as (
         l.ingested_at
     
     from listings l
+    -- Null source locations join to the dimension's explicit 'Unknown' member.
     left join locations loc
-        on l.location_raw = loc.location_raw
+        on coalesce(l.location_raw, 'Unknown') = loc.location_raw
 )
 
 select * from final
