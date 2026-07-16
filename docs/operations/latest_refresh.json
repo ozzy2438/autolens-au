@@ -1,11 +1,51 @@
 {
-  "status": "not_run",
-  "completed_at": null,
-  "sources": {},
-  "dbt": {
-    "status": "not_run",
-    "tests_passed": null,
-    "tests_failed": null
+  "status": "degraded",
+  "completed_at": "2026-07-16T05:04:49.231340+00:00",
+  "github_run_id": "29472238867",
+  "commit_sha": "c3bf491f753a0725f111403f4db9b33df43e7d80",
+  "sources": {
+    "kaggle": {
+      "status": "success",
+      "snapshot_date": "2026-07-16",
+      "primary_rows": 16734,
+      "secondary_rows": 0,
+      "loaded_rows": 16648
+    },
+    "fuel": {
+      "status": "error",
+      "error": "RetryError[<Future at 0x7f6382979bd0 state=finished raised ValueError>]"
+    },
+    "qld": {
+      "status": "success",
+      "rows": 512000,
+      "resources": 16
+    },
+    "cpi": {
+      "status": "success",
+      "cpi_rows": 416,
+      "cash_rate_rows": 3930
+    },
+    "bitre": {
+      "status": "error",
+      "error": "The read operation timed out"
+    }
   },
-  "note": "This file is updated only by a successful measured refresh workflow."
+  "failed_sources": [
+    "fuel",
+    "bitre"
+  ],
+  "dbt": {
+    "status": "success",
+    "tests_passed": 34,
+    "tests_failed": 0,
+    "models_built": 10
+  },
+  "model": {
+    "status": "available",
+    "version": "1.0.0",
+    "trained_at": "2026-07-16T05:04:48.236947+00:00",
+    "validation_strategy": "random_holdout_single_snapshot",
+    "mae": 5858.53,
+    "mdape": 10.11
+  }
 }
