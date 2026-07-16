@@ -76,13 +76,19 @@ unset SNOWFLAKE_PASSWORD
 ```
 
 The default `CREDIT_QUOTA` is 5 credits/month — a conservative cap for one X-Small
-warehouse serving monthly refreshes, CI, and light dashboard reads. Triggers notify
-account administrators at 75% and 90%, `SUSPEND` at 100% (running statements finish,
-new ones are blocked), and `SUSPEND_IMMEDIATE` at 110%. Adjust the quota before
-running if your expected usage differs, and configure notification recipients in the
-Snowflake console so the NOTIFY triggers reach a person. The file is idempotent:
-re-running converges the quota and triggers without resetting the current period's
-accumulated usage.
+warehouse serving monthly refreshes, CI, and light dashboard reads. Triggers `SUSPEND`
+at 100% (running statements finish, new ones are blocked) and `SUSPEND_IMMEDIATE` at
+110%; suspension is enforced regardless of notification setup. The 75% and 90% `NOTIFY`
+triggers only send email once you uncomment `NOTIFY_USERS` and list users with a
+verified email and notifications enabled.
+
+The file is idempotent by using `CREATE ... IF NOT EXISTS`: a rerun is a no-op and
+never resets the current period's accumulated usage. Because a rerun therefore ignores
+edits to the `CREATE`, change the ceiling later with an explicit
+`ALTER RESOURCE MONITOR AUTOLENS_MONITOR SET CREDIT_QUOTA = <new_value>` (shown at the
+bottom of the file), which does not reset usage. Snowflake does not allow `OR REPLACE`
+together with `IF NOT EXISTS`, and `OR REPLACE` would recreate the monitor, so it is
+avoided here.
 
 ## Non-human authentication
 
