@@ -55,7 +55,34 @@ unset SNOWFLAKE_PASSWORD
 The script assigns project roles to `CURRENT_USER()`, changes that user's default
 role to `AUTOLENS_ADMIN`, and leaves `ACCOUNTADMIN` available only for account-level
 administration. It does not create a resource monitor because a credit quota is a
-budget decision. Set one separately after choosing a monthly credit limit.
+budget decision, kept separate from access control (see below).
+
+## Credit resource monitor
+
+[`infra/snowflake/resource_monitor.sql`](../infra/snowflake/resource_monitor.sql)
+creates `AUTOLENS_MONITOR`, a monthly credit cap bound to `AUTOLENS_WH`. It is kept
+out of the account bootstrap on purpose: the bootstrap defines *who can do what*, and
+the monitor defines *how much it may cost*, which is a budget decision to make
+explicitly. Run it as `ACCOUNTADMIN` after choosing a ceiling:
+
+```bash
+export SNOWFLAKE_PASSWORD='set-this-in-your-shell-or-secret-manager'
+snow sql --temporary-connection \
+  --account your_org-your_account \
+  --user your_admin_user \
+  --role ACCOUNTADMIN \
+  --filename infra/snowflake/resource_monitor.sql
+unset SNOWFLAKE_PASSWORD
+```
+
+The default `CREDIT_QUOTA` is 5 credits/month — a conservative cap for one X-Small
+warehouse serving monthly refreshes, CI, and light dashboard reads. Triggers notify
+account administrators at 75% and 90%, `SUSPEND` at 100% (running statements finish,
+new ones are blocked), and `SUSPEND_IMMEDIATE` at 110%. Adjust the quota before
+running if your expected usage differs, and configure notification recipients in the
+Snowflake console so the NOTIFY triggers reach a person. The file is idempotent:
+re-running converges the quota and triggers without resetting the current period's
+accumulated usage.
 
 ## Non-human authentication
 

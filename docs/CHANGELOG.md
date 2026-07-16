@@ -29,6 +29,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Container delivery preflight that safely skips publishing until a calibrated release exists
 - Real Snowflake dbt integration job for trusted PRs and main, isolated from production
 - Snowflake SQLAlchemy runtime for Streamlit, FastAPI, ingestion and scheduled refreshes
+- Snowflake credit resource monitor (`AUTOLENS_MONITOR`) capping monthly warehouse spend
+- README decision record explaining the PostgreSQL-compatible / Snowflake-operated choice
 
 ### Fixed
 - Snowflake-incompatible listing upsert SQL (PostgreSQL `LIKE ... INCLUDING DEFAULTS`, target
