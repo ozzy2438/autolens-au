@@ -9,6 +9,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Allows the Monthly Refresh workflow to start required checks on the
+  # evidence PR it opens: events created with the Actions token never trigger
+  # workflows, so the refresh dispatches CI on its automation branch instead.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
