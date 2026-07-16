@@ -139,3 +139,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - `bitre`: success, rows=93
 - `dbt build`: success; models=10, tests passed=34, tests failed=0
 - model: available; validation=random_holdout_single_snapshot, MAE=5858.53, MdAPE=10.11
+
+<!-- refresh:29504853049 -->
+## 2026-07-16 Monthly Refresh (run 29504853049)
+
+- `kaggle`: success, rows=16648
+- `fuel`: success, rows=10589
+- `qld`: success, rows=512000
+- `cpi`: success
+- `bitre`: success, rows=93
+- `dbt build`: success; models=10, tests passed=34, tests failed=0
+- model: available; validation=random_holdout_single_snapshot, MAE=5858.53, MdAPE=10.11
