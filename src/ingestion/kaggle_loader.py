@@ -10,7 +10,7 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from config.database import get_engine
+from config.database import ensure_raw_schema, get_engine
 from config.settings import DATA_DIR
 
 logger = logging.getLogger(__name__)
@@ -246,6 +246,54 @@ def deduplicate_listings(df: pd.DataFrame) -> pd.DataFrame:
     return result.drop(columns="_completeness").reset_index(drop=True)
 
 
+def _raw_listing_upsert_statements(dialect: str) -> list[str]:
+    """Build the batch-to-canonical upsert statements for the active SQL dialect."""
+    added_columns = (
+        "source_record_id TEXT",
+        "variant TEXT",
+        "listing_fingerprint TEXT",
+        "snapshot_date DATE",
+    )
+    alter_statements = [
+        f"ALTER TABLE raw.raw_listings ADD COLUMN IF NOT EXISTS {column}"
+        for column in added_columns
+    ]
+    if dialect == "snowflake":
+        # Snowflake has no CREATE INDEX on standard tables, takes LIKE without
+        # parentheses, rejects an alias on the DELETE target, and stores the
+        # batch table's unquoted identifiers in uppercase, so quoted-lowercase
+        # column references would not resolve.
+        columns = ", ".join(RAW_COLUMNS)
+        return [
+            "CREATE TABLE IF NOT EXISTS raw.raw_listings LIKE raw._raw_listings_batch",
+            *alter_statements,
+            "DELETE FROM raw.raw_listings "
+            "USING raw._raw_listings_batch AS batch "
+            "WHERE raw.raw_listings.listing_fingerprint = batch.listing_fingerprint "
+            "AND raw.raw_listings.snapshot_date = batch.snapshot_date",
+            f"INSERT INTO raw.raw_listings ({columns}) "  # noqa: S608
+            f"SELECT {columns} FROM raw._raw_listings_batch",
+            "DROP TABLE raw._raw_listings_batch",
+        ]
+    if dialect == "postgresql":
+        quoted_columns = ", ".join(f'"{column}"' for column in RAW_COLUMNS)
+        return [
+            "CREATE TABLE IF NOT EXISTS raw.raw_listings "
+            "(LIKE raw._raw_listings_batch INCLUDING DEFAULTS)",
+            *alter_statements,
+            "DELETE FROM raw.raw_listings AS existing "
+            "USING raw._raw_listings_batch AS batch "
+            "WHERE existing.listing_fingerprint = batch.listing_fingerprint "
+            "AND existing.snapshot_date = batch.snapshot_date",
+            f"INSERT INTO raw.raw_listings ({quoted_columns}) "  # noqa: S608
+            f"SELECT {quoted_columns} FROM raw._raw_listings_batch",
+            "DROP TABLE raw._raw_listings_batch",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_listings_snapshot "
+            "ON raw.raw_listings (listing_fingerprint, snapshot_date)",
+        ]
+    raise ValueError(f"Unsupported database dialect: {dialect}")
+
+
 def load_to_raw_schema(
     df: pd.DataFrame,
     table_name: str = "raw_listings",
@@ -259,10 +307,9 @@ def load_to_raw_schema(
 
     database = engine or get_engine()
     batch_table = "_raw_listings_batch"
-    quoted_columns = ", ".join(f'"{column}"' for column in RAW_COLUMNS)
 
     with database.begin() as connection:
-        connection.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
+        ensure_raw_schema(connection)
         df.reindex(columns=RAW_COLUMNS).to_sql(
             batch_table,
             connection,
@@ -272,40 +319,8 @@ def load_to_raw_schema(
             method="multi",
             chunksize=1000,
         )
-        connection.execute(
-            text(
-                "CREATE TABLE IF NOT EXISTS raw.raw_listings "
-                "(LIKE raw._raw_listings_batch INCLUDING DEFAULTS)"
-            )
-        )
-        for ddl in (
-            "ADD COLUMN IF NOT EXISTS source_record_id TEXT",
-            "ADD COLUMN IF NOT EXISTS variant TEXT",
-            "ADD COLUMN IF NOT EXISTS listing_fingerprint TEXT",
-            "ADD COLUMN IF NOT EXISTS snapshot_date DATE",
-        ):
-            connection.execute(text(f"ALTER TABLE raw.raw_listings {ddl}"))
-        connection.execute(
-            text(
-                "DELETE FROM raw.raw_listings AS existing "
-                "USING raw._raw_listings_batch AS batch "
-                "WHERE existing.listing_fingerprint = batch.listing_fingerprint "
-                "AND existing.snapshot_date = batch.snapshot_date"
-            )
-        )
-        connection.execute(
-            text(
-                f"INSERT INTO raw.raw_listings ({quoted_columns}) "  # noqa: S608
-                f"SELECT {quoted_columns} FROM raw._raw_listings_batch"
-            )
-        )
-        connection.execute(text("DROP TABLE raw._raw_listings_batch"))
-        connection.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_listings_snapshot "
-                "ON raw.raw_listings (listing_fingerprint, snapshot_date)"
-            )
-        )
+        for statement in _raw_listing_upsert_statements(connection.dialect.name):
+            connection.execute(text(statement))
 
     logger.info("Loaded %s listings into raw.raw_listings", len(df))
     return len(df)

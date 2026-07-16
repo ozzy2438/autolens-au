@@ -9,7 +9,7 @@ from typing import Any
 from cryptography.hazmat.primitives import serialization
 from snowflake.sqlalchemy import URL
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool
 
@@ -92,6 +92,18 @@ def get_engine(database_url: str | None = None) -> Engine:
 def clear_engine_cache() -> None:
     """Clear cached engines; primarily useful when tests change database URLs."""
     get_engine.cache_clear()
+
+
+def ensure_raw_schema(connection: Connection) -> None:
+    """Create the raw schema on backends whose runtime role owns schema setup.
+
+    Snowflake schemas are provisioned by ``infra/snowflake/bootstrap.sql`` and the
+    runtime roles deliberately hold no CREATE SCHEMA privilege, so creation is
+    skipped there.
+    """
+    if connection.dialect.name == "snowflake":
+        return
+    connection.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
 
 
 @contextmanager
