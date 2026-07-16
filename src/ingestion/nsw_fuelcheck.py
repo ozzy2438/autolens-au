@@ -18,10 +18,9 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pandas as pd
-from sqlalchemy import text
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from config.database import get_engine
+from config.database import ensure_raw_schema, get_engine
 from config.settings import nsw_fuel_config
 
 logger = logging.getLogger(__name__)
@@ -154,9 +153,8 @@ def load_fuel_prices_to_db(df: pd.DataFrame) -> int:
     """Load fuel price data into the configured raw schema."""
     engine = get_engine()
 
-    with engine.connect() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
-        conn.commit()
+    with engine.begin() as conn:
+        ensure_raw_schema(conn)
 
     df.to_sql(
         "raw_fuel_prices",

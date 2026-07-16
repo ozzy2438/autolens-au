@@ -30,6 +30,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Real Snowflake dbt integration job for trusted PRs and main, isolated from production
 - Snowflake SQLAlchemy runtime for Streamlit, FastAPI, ingestion and scheduled refreshes
 
+### Fixed
+- Snowflake-incompatible listing upsert SQL (PostgreSQL `LIKE ... INCLUDING DEFAULTS`, target
+  alias in `DELETE`, quoted-lowercase column references, and unsupported `CREATE UNIQUE INDEX`)
+  now uses dialect-appropriate statements, so the first credentialled refresh can load listings
+- Ingestion no longer issues `CREATE SCHEMA` on Snowflake, where schemas are bootstrap-owned and
+  runtime roles hold no schema-creation privilege
+
 ### Remediated
 - Removed unverified live-service, uptime, refresh, UAT and model-metric claims
 - Made Python tests, type checks and a seed-backed `dbt build` blocking CI gates

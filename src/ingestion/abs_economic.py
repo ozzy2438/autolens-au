@@ -6,10 +6,9 @@ from io import StringIO
 
 import httpx
 import pandas as pd
-from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from config.database import get_engine
+from config.database import ensure_raw_schema, get_engine
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +115,7 @@ def load_economic_data_to_db(engine: Engine | None = None) -> dict[str, int | st
     """Fetch and replace the authoritative RBA CPI and cash-rate tables."""
     target_engine = engine or get_engine()
     with target_engine.begin() as connection:
-        connection.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
+        ensure_raw_schema(connection)
 
     cpi = fetch_abs_cpi()
     cash_rate = fetch_rba_cash_rate()

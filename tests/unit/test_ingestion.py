@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from src.ingestion.kaggle_loader import (
+    _raw_listing_upsert_statements,
     add_lineage,
     deduplicate_listings,
     load_primary_dataset,
@@ -111,3 +112,41 @@ def test_deduplication_keeps_most_complete_cross_source_record():
     assert len(result) == 1
     assert result.loc[0, "source"] == "source-b"
     assert result.loc[0, "body_type"] == "Sedan"
+
+
+def test_snowflake_upsert_statements_avoid_postgresql_only_sql():
+    statements = _raw_listing_upsert_statements("snowflake")
+    joined = " ".join(statements)
+
+    assert statements[0] == (
+        "CREATE TABLE IF NOT EXISTS raw.raw_listings LIKE raw._raw_listings_batch"
+    )
+    assert "CREATE UNIQUE INDEX" not in joined
+    assert "INCLUDING DEFAULTS" not in joined
+    assert "AS existing" not in joined
+    # Unquoted DDL stores uppercase identifiers, so quoted-lowercase
+    # column references would not resolve on Snowflake.
+    assert '"brand"' not in joined
+    assert statements[-1] == "DROP TABLE raw._raw_listings_batch"
+
+
+def test_postgresql_upsert_statements_keep_snapshot_unique_index():
+    statements = _raw_listing_upsert_statements("postgresql")
+
+    assert "(LIKE raw._raw_listings_batch INCLUDING DEFAULTS)" in statements[0]
+    assert '"listing_fingerprint"' in " ".join(statements)
+    assert statements[-1] == (
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_listings_snapshot "
+        "ON raw.raw_listings (listing_fingerprint, snapshot_date)"
+    )
+
+
+def test_upsert_statements_replace_matching_snapshot_rows_for_both_dialects():
+    for dialect in ("postgresql", "snowflake"):
+        statements = _raw_listing_upsert_statements(dialect)
+        delete = next(s for s in statements if s.startswith("DELETE FROM raw.raw_listings"))
+        insert = next(s for s in statements if s.startswith("INSERT INTO raw.raw_listings"))
+
+        assert "listing_fingerprint = batch.listing_fingerprint" in delete
+        assert "snapshot_date = batch.snapshot_date" in delete
+        assert "SELECT" in insert and "FROM raw._raw_listings_batch" in insert

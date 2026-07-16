@@ -12,10 +12,9 @@ from datetime import UTC, date, datetime
 
 import httpx
 import pandas as pd
-from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from config.database import get_engine
+from config.database import ensure_raw_schema, get_engine
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +145,7 @@ def load_to_raw_schema(df: pd.DataFrame, engine: Engine | None = None) -> int:
         return 0
     target_engine = engine or get_engine()
     with target_engine.begin() as connection:
-        connection.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
+        ensure_raw_schema(connection)
     df.to_sql(
         "raw_qld_registration_activity",
         target_engine,

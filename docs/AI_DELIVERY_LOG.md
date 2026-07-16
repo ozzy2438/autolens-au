@@ -159,6 +159,23 @@ data refresh or model training run when this audit began.
   - Repository history and tracked files were scanned to confirm no supplied credential was stored
 - **Time saved:** Not independently measured; no numeric saving is claimed
 
+### Entry 010 — Snowflake Listing Upsert Compatibility
+- **Date:** 2026-07-16
+- **PR:** fix/snowflake-listing-upsert
+- **AI Tool:** Claude Code
+- **What was generated:**
+  - Dialect-aware `raw_listings` upsert statement builder (Snowflake `LIKE`, alias-free `DELETE`,
+    unquoted identifiers, no index; PostgreSQL behaviour unchanged)
+  - Shared `ensure_raw_schema` helper that skips `CREATE SCHEMA` on Snowflake, where schemas are
+    bootstrap-owned and runtime roles hold no schema-creation privilege
+  - Unit tests asserting the emitted SQL per dialect and the schema-creation guard
+- **What was reviewed/corrected:**
+  - Confirmed the PR #4 validation had exercised direct writes but not this loader path, which
+    still emitted PostgreSQL-only DDL and would have failed the first credentialled refresh
+  - Verified quoting semantics: unquoted lowercase identifiers resolve to uppercase on Snowflake,
+    so the Snowflake branch emits unquoted column lists
+- **Time saved:** Not independently measured; no numeric saving is claimed
+
 ---
 
 ## How This Workflow Operates
