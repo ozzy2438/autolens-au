@@ -33,6 +33,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - README decision record explaining the PostgreSQL-compatible / Snowflake-operated choice
 
 ### Fixed
+- Raw layer now widens free-text columns to an unbounded type: a dealer name in the source
+  listings `Car/Suv` field (>50 chars) made Snowflake reject the whole load with a
+  truncation error. Applied as an idempotent migration so pre-existing narrow tables converge
 - Snowflake ingestion writes: `pandas.to_sql(method="multi")` bound Python timestamps as
   parameters, which Snowflake rejects. A dialect-aware `write_dataframe` now renders temporal
   columns as ISO strings that implicitly cast into the pre-typed columns, and truncates rather
