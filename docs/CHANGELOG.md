@@ -36,6 +36,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - README decision record explaining the PostgreSQL-compatible / Snowflake-operated choice
 
 ### Fixed
+- Fuel staging now applies a documented plausibility window (50-500 cents/litre): the live
+  feed's occasional mis-keyed station prices (2 of 10,591 in the first full load) failed the
+  hard accepted-range test; invalid readings are filtered in staging and the test enforces
+  the contract on what staging emits
 - NSW fuel persistence: the API's day-first `lastupdated` string ('15/07/2026 22:50:19')
   is parsed to a datetime before writing, so Snowflake's TIMESTAMP cast accepts it; the CI
   Snowflake smoke test now writes the same day-first string
