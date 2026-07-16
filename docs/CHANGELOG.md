@@ -33,6 +33,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - README decision record explaining the PostgreSQL-compatible / Snowflake-operated choice
 
 ### Fixed
+- Reclassified the price-outlier dbt test as a WARN-severity monitor with a 5% threshold:
+  a real used-car market's luxury tail exceeds 3x IQR for >1% of listings, which was
+  erroring the refresh; it now surfaces on the data-quality log without blocking the model
 - Removed `not_null` dbt source tests on raw listings `brand`/`price`/`year`: the raw layer
   accepts source nulls (e.g. price-on-application), and `stg_listings` already enforces
   not_null after filtering; the tests wrongly failed the refresh on 50 legitimately null prices
