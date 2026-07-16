@@ -155,3 +155,24 @@ def test_upsert_statements_replace_matching_snapshot_rows_for_both_dialects():
         assert "listing_fingerprint = batch.listing_fingerprint" in delete
         assert "snapshot_date = batch.snapshot_date" in delete
         assert "SELECT" in insert and "FROM raw._raw_listings_batch" in insert
+
+
+def test_fuel_merge_normalises_mixed_station_key_types():
+    from src.ingestion.nsw_fuelcheck import merge_prices_with_stations
+
+    prices = pd.DataFrame({"stationcode": [101, 102], "price": [189.9, 195.0]})
+    stations = pd.DataFrame({"code": ["101", "102"], "name": ["Alpha", "Beta"]})
+
+    merged = merge_prices_with_stations(prices, stations)
+
+    assert list(merged["name"]) == ["Alpha", "Beta"]
+
+
+def test_fuel_merge_returns_prices_when_stations_missing():
+    from src.ingestion.nsw_fuelcheck import merge_prices_with_stations
+
+    prices = pd.DataFrame({"stationcode": [101], "price": [189.9]})
+
+    merged = merge_prices_with_stations(prices, pd.DataFrame())
+
+    assert list(merged.columns) == ["stationcode", "price"]

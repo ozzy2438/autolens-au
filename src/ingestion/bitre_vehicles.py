@@ -7,6 +7,7 @@ from io import BytesIO
 import httpx
 import pandas as pd
 from sqlalchemy.engine import Engine
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from config.database import ensure_raw_schema, get_engine, write_dataframe
 
@@ -63,14 +64,31 @@ def parse_bitre_vehicle_makes(content: bytes) -> pd.DataFrame:
     return result.reset_index(drop=True)
 
 
+@retry(
+    retry=retry_if_exception_type(httpx.HTTPError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=2, min=5, max=30),
+    reraise=True,
+)
+def _download_workbook(client: httpx.Client) -> bytes:
+    """Fetch the workbook with retries; bitre.gov.au is slow from datacenter IPs."""
+    response = client.get(BITRE_WORKBOOK_URL)
+    response.raise_for_status()
+    return response.content
+
+
 def fetch_bitre_vehicle_makes(client: httpx.Client | None = None) -> pd.DataFrame:
     """Download and parse the published BITRE workbook."""
     owns_client = client is None
-    http_client = client or httpx.Client(timeout=90.0, follow_redirects=True)
+    # The workbook is only ~150 KB, but the site intermittently stalls when serving
+    # CI runners: keep connects short and allow a long read before each retry.
+    http_client = client or httpx.Client(
+        timeout=httpx.Timeout(connect=10.0, read=180.0, write=30.0, pool=10.0),
+        follow_redirects=True,
+        headers={"User-Agent": "autolens-au/1.0 (public data ingestion)"},
+    )
     try:
-        response = http_client.get(BITRE_WORKBOOK_URL)
-        response.raise_for_status()
-        return parse_bitre_vehicle_makes(response.content)
+        return parse_bitre_vehicle_makes(_download_workbook(http_client))
     finally:
         if owns_client:
             http_client.close()

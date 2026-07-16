@@ -1,5 +1,15 @@
 """Instant valuation backed by the calibrated local model artifact."""
 
+# Make the repository root importable and bridge Streamlit secrets into the
+# environment before any `src.` / `config.` import reads configuration.
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from src.dashboard.runtime import bootstrap
+
+bootstrap()
+
 from datetime import UTC, datetime
 
 import pandas as pd

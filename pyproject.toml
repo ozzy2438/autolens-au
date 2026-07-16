@@ -64,6 +64,10 @@ ignore = ["E501", "S101"]
 [tool.ruff.lint.per-file-ignores]
 "config/settings.py" = ["S104", "S105"]
 "src/api/main.py" = ["S104"]
+# Streamlit entry scripts must adjust sys.path and bridge secrets before the
+# `src.` imports, so module-level imports legitimately follow statements.
+"src/dashboard/app.py" = ["E402"]
+"src/dashboard/pages/*.py" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
