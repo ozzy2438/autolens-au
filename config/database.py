@@ -2,7 +2,6 @@
 
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
-from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -122,10 +121,13 @@ def stringify_temporal_columns(df: pd.DataFrame) -> pd.DataFrame:
         series = result[column]
         if pd.api.types.is_datetime64_any_dtype(series):
             result[column] = series.astype("string")
-        elif series.dtype == object:
-            non_null = series.dropna()
-            if len(non_null) and isinstance(non_null.iloc[0], (date, datetime, pd.Timestamp)):
-                result[column] = series.astype("string")
+        elif series.dtype == object and pd.api.types.infer_dtype(series, skipna=True) in {
+            "date",
+            "datetime",
+        }:
+            # infer_dtype inspects every value, so mixed or leading-null object
+            # columns are classified correctly rather than from the first element.
+            result[column] = series.astype("string")
     return result
 
 
@@ -158,6 +160,7 @@ def write_dataframe(
         frame = stringify_temporal_columns(frame)
         with database.begin() as connection:
             if mode == "replace":
+                # schema/table are developer-provided constants, not user input.
                 connection.execute(text(f"TRUNCATE TABLE IF EXISTS {schema}.{table_name}"))
             frame.to_sql(
                 table_name,

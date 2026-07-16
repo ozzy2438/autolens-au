@@ -23,7 +23,9 @@ def build_refresh_status(
     """Validate upstream evidence and produce the single operational status object."""
     pipeline_status = pipeline.get("status")
     if pipeline_status not in {"success", "degraded"}:
-        raise ValueError("Cannot record a refresh from a failed pipeline result")
+        raise ValueError(
+            f"Cannot record a refresh from a non-passing pipeline result: {pipeline_status!r}"
+        )
 
     results = dbt_results.get("results", [])
     failed = [result for result in results if result.get("status") in {"error", "fail"}]

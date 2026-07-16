@@ -42,7 +42,7 @@ def test_refresh_status_contains_measured_counts(monkeypatch: pytest.MonkeyPatch
 
 
 def test_failed_pipeline_or_dbt_cannot_be_recorded_as_success() -> None:
-    with pytest.raises(ValueError, match="failed pipeline"):
+    with pytest.raises(ValueError, match="non-passing pipeline"):
         build_refresh_status(_pipeline("failed"), _dbt())
     with pytest.raises(ValueError, match="failed nodes"):
         build_refresh_status(_pipeline(), _dbt("fail"))

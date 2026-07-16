@@ -33,10 +33,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - README decision record explaining the PostgreSQL-compatible / Snowflake-operated choice
 
 ### Fixed
-- Snowflake ingestion writes: replaced `pandas.to_sql(method="multi")`, which cannot bind
-  Python timestamps on Snowflake, with a dialect-aware `write_dataframe` that emits ISO
-  strings and truncates rather than drops the pre-typed target tables; the first real
-  refresh had failed at listing load with `Binding data in type (timestamp) is not supported`
+- Snowflake ingestion writes: `pandas.to_sql(method="multi")` bound Python timestamps as
+  parameters, which Snowflake rejects. A dialect-aware `write_dataframe` now renders temporal
+  columns as ISO strings that implicitly cast into the pre-typed columns, and truncates rather
+  than drops the target tables on replace, while still using `to_sql` for the bulk insert; the
+  first real refresh had failed at listing load with `Binding data in type (timestamp) is not supported`
 - Monthly refresh now treats listings as required and government context sources as
   best-effort, so a single upstream outage records a degraded run instead of blocking the model
 - CI now exercises the pandas -> Snowflake write path against the isolated CI database, the

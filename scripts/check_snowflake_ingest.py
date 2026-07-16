@@ -3,7 +3,7 @@
 dbt seeds cover the SQL layer but never exercise the Python ingestion writes, which
 is how the timestamp-binding regression reached a real refresh. This script writes
 small frames that contain DATE and TIMESTAMP columns through the same persistence
-functions the pipeline uses, then asserts the rows round-trip. It is destructive and
+functions the pipeline uses, then verifies the rows round-trip. It is destructive and
 must only run against AUTOLENS_AU_CI.
 """
 
@@ -52,6 +52,7 @@ def _listings_frame(snapshot: str) -> pd.DataFrame:
 def _truncate_all(engine) -> None:
     with engine.begin() as connection:
         for table in RAW_TABLES:
+            # table comes from the module allow-list, not user input.
             connection.execute(text(f"TRUNCATE TABLE IF EXISTS raw.{table}"))
 
 
@@ -64,6 +65,12 @@ def _count(engine, table: str) -> int:
                 text(f"SELECT count(*) FROM raw.{table}")  # noqa: S608 -- table is allow-listed
             ).scalar_one()
         )
+
+
+def _require(actual: int, expected: int, label: str) -> None:
+    """Raise on mismatch; explicit so validation survives ``python -O``."""
+    if actual != expected:
+        raise RuntimeError(f"{label}: expected {expected} rows, found {actual}")
 
 
 def main() -> int:
@@ -87,8 +94,7 @@ def main() -> int:
     # exercising the timestamp-binding fix and the Snowflake upsert statements.
     load_listings(_listings_frame("2026-07-01"))
     load_listings(_listings_frame("2026-08-01"))
-    listings = _count(engine, "raw_listings")
-    assert listings == 4, f"expected 4 listing rows across two snapshots, got {listings}"
+    _require(_count(engine, "raw_listings"), 4, "raw_listings across two snapshots")
 
     # Fuel: append with a tz-aware fetched_at and a naive lastupdated timestamp.
     load_fuel_prices_to_db(
@@ -105,7 +111,7 @@ def main() -> int:
             }
         )
     )
-    assert _count(engine, "raw_fuel_prices") == 1
+    _require(_count(engine, "raw_fuel_prices"), 1, "raw_fuel_prices")
 
     # QLD: replace with a DATE activity_month.
     load_qld(
@@ -125,7 +131,7 @@ def main() -> int:
             }
         )
     )
-    assert _count(engine, "raw_qld_registration_activity") == 1
+    _require(_count(engine, "raw_qld_registration_activity"), 1, "raw_qld_registration_activity")
 
     # BITRE: replace with a plain reference year.
     load_bitre(
@@ -139,7 +145,7 @@ def main() -> int:
             }
         )
     )
-    assert _count(engine, "raw_bitre_vehicle_makes") == 1
+    _require(_count(engine, "raw_bitre_vehicle_makes"), 1, "raw_bitre_vehicle_makes")
 
     logger.info("Snowflake ingestion write path validated; cleaning up")
     _truncate_all(engine)
