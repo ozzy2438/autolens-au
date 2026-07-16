@@ -9,7 +9,6 @@ must only run against AUTOLENS_AU_CI.
 
 import logging
 import sys
-from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -102,14 +101,15 @@ def main() -> int:
     load_listings(_listings_frame("2026-08-01"))
     _require(_count(engine, "raw_listings"), 4, "raw_listings across two snapshots")
 
-    # Fuel: append with a tz-aware fetched_at and a naive lastupdated timestamp.
+    # Fuel: append with a tz-aware fetched_at and the live API's day-first
+    # lastupdated string, which the loader must parse before Snowflake casts it.
     load_fuel_prices_to_db(
         pd.DataFrame(
             {
                 "stationcode": ["101"],
                 "fueltype": ["U91"],
                 "price": [189.9],
-                "lastupdated": [datetime(2026, 7, 15, 8, 0, 0)],
+                "lastupdated": ["15/07/2026 22:50:19"],
                 "name": ["CI Station"],
                 "extra_api_field": ["dropped"],
                 "fetched_at": [pd.Timestamp.now(tz="UTC")],

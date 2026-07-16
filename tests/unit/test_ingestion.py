@@ -176,3 +176,35 @@ def test_fuel_merge_returns_prices_when_stations_missing():
     merged = merge_prices_with_stations(prices, pd.DataFrame())
 
     assert list(merged.columns) == ["stationcode", "price"]
+
+
+def test_fuel_loader_parses_dayfirst_lastupdated(monkeypatch):
+    from src.ingestion import nsw_fuelcheck
+
+    captured: dict = {}
+
+    def fake_write(df, table, **kwargs):
+        captured["lastupdated"] = df["lastupdated"].iloc[0]
+        return len(df)
+
+    monkeypatch.setattr(nsw_fuelcheck, "write_dataframe", fake_write)
+    monkeypatch.setattr(
+        nsw_fuelcheck,
+        "get_engine",
+        lambda: __import__("unittest.mock", fromlist=["MagicMock"]).MagicMock(),
+    )
+
+    frame = pd.DataFrame(
+        {
+            "stationcode": ["101"],
+            "fueltype": ["U91"],
+            "price": [189.9],
+            "lastupdated": ["15/07/2026 22:50:19"],
+            "fetched_at": [pd.Timestamp.now(tz="UTC")],
+            "source": ["test"],
+        }
+    )
+
+    nsw_fuelcheck.load_fuel_prices_to_db(frame)
+
+    assert captured["lastupdated"] == pd.Timestamp(2026, 7, 15, 22, 50, 19)
