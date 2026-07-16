@@ -1,14 +1,14 @@
 # AutoLens AU — Operational Status
 
-## Current Status: First measured refresh and model release complete; public deployment pending
+## Current Status: Fully successful measured refresh (5/5 sources) and model release complete; public deployment pending
 
 | Component | Status | Last Check |
 |-----------|--------|------------|
 | Dashboard | Not deployed; release-artifact retrieval implemented and a calibrated release now exists | 2026-07-16 |
 | Valuation API | Not deployed; tested container image published to GHCR | 2026-07-16 |
-| Production database | Populated: 16,648 listing snapshot rows, QLD activity, CPI/cash-rate in `AUTOLENS_AU` | 2026-07-16 |
+| Production database | Populated: 16,648 listing snapshot rows, 10,589 live fuel prices, QLD activity, CPI/cash-rate, BITRE fleet counts in `AUTOLENS_AU` | 2026-07-17 |
 | CI Pipeline | Python/PostgreSQL gates plus real Snowflake dbt build and ingestion write check, all passing | 2026-07-16 |
-| Monthly Refresh | First credentialled run recorded ([run 29472238867](https://github.com/ozzy2438/autolens-au/actions/runs/29472238867)); status **degraded**: NSW fuel and BITRE sources failed, required listings succeeded | 2026-07-16 |
+| Monthly Refresh | First fully successful run recorded ([run 29504853049](https://github.com/ozzy2438/autolens-au/actions/runs/29504853049)): **all five sources succeeded**, `failed_sources: []` | 2026-07-17 |
 | Model | First calibrated artifact trained and published as [`model-29472238867-1`](https://github.com/ozzy2438/autolens-au/releases/tag/model-29472238867-1): LightGBM MAE $5,859, MdAPE 10.1%, 80% PI coverage 79.95%, single-snapshot random holdout (honestly labelled; genuine out-of-time validation begins with the second monthly snapshot) | 2026-07-16 |
 | Model Drift | Baseline established; first drift evaluation possible after the August snapshot | 2026-07-16 |
 | Container Delivery | First image published: `ghcr.io/ozzy2438/autolens-au` (preflight verified the model release) | 2026-07-16 |
@@ -17,16 +17,18 @@
 
 ---
 
-## Known degraded sources
+## Resolved source incidents
 
-The first refresh recorded two best-effort source failures (the refresh design lets the
-required listings source proceed regardless):
+The first refresh recorded two best-effort source failures; both were root-caused and
+fixed with tested PRs, and the follow-up refresh succeeded on all five sources:
 
-- `fuel` (NSW FuelCheck): request retries exhausted — under investigation
-- `bitre` (workbook download): read timeout — under investigation
+- `fuel` (NSW FuelCheck): mixed-type station-code merge keys, a day-first `lastupdated`
+  format Snowflake rejects, and 2 mis-keyed prices outside the documented plausibility
+  window (PRs #14, #16, #17)
+- `bitre` (workbook download): slow serving to CI egress IPs — retries and granular
+  timeouts added (PR #14)
 
-Both are tracked for the next refresh; evidence is in
-[`docs/operations/latest_refresh.json`](docs/operations/latest_refresh.json).
+Evidence: [`docs/operations/latest_refresh.json`](docs/operations/latest_refresh.json).
 
 ---
 

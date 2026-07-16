@@ -158,3 +158,6 @@ jobs:
             --head "$branch" \
             --title "chore: measured monthly refresh ${GITHUB_RUN_ID}" \
             --body "Generated from successful ingestion, dbt build, and model workflow evidence."
+          # Events created with the Actions token do not trigger workflows, so the
+          # evidence PR would otherwise sit with its required checks never starting.
+          gh workflow run CI --ref "$branch"
